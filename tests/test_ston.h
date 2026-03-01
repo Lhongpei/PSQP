@@ -4,6 +4,7 @@
 #include "Debugger.h"
 #include "PSLP_API.h"
 
+#include "Simple_dual_fix.h"
 #include "StonCols.h"
 #include "debug_macros.h"
 #include "minunit.h"
@@ -932,6 +933,7 @@ static char *test_12_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
+    simple_dual_fix(prob);
     problem_clean(prob, true);
 
     mu_assert("error",
@@ -1015,6 +1017,7 @@ static char *test_13_ston()
     Constraints *constraints = prob->constraints;
     Matrix *A = constraints->A;
     remove_ston_cols(prob);
+    simple_dual_fix(prob);
     problem_clean(prob, true);
 
     mu_assert("error",

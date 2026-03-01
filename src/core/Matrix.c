@@ -17,6 +17,7 @@
  */
 
 #include "Matrix.h"
+#include "Binary_search.h"
 #include "Debugger.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
@@ -198,14 +199,14 @@ void free_matrix(Matrix *A)
     PS_FREE(A);
 }
 
-void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
-                        bool remove_all, int *col_idxs_map)
+void remove_extra_space(Matrix *A, const int *row_sizes, bool remove_all,
+                        const int *col_idxs_map, size_t new_n_cols)
 {
     int j, start, end, len, row_alloc, curr;
     int extra_row_space = (remove_all) ? 0 : EXTRA_ROW_SPACE;
     double extra_mem_ratio = (remove_all) ? 1.0 : EXTRA_MEMORY_RATIO;
     curr = 0;
-    size_t i, n_deleted_rows, col_count;
+    size_t i, n_deleted_rows;
 
     // --------------------------------------------------------------------------
     // loop through the rows and remove redundant space, including inactive
@@ -241,25 +242,9 @@ void remove_extra_space(Matrix *A, const int *row_sizes, const int *col_sizes,
     A->p = (RowRange *) ps_realloc(A->p, (size_t) (A->m + 1), sizeof(RowRange));
 
     // -------------------------------------------------------------------------
-    //                      compute new column indices
-    // -------------------------------------------------------------------------
-    col_count = 0;
-    for (i = 0; i < A->n; ++i)
-    {
-        if (col_sizes[i] == SIZE_INACTIVE_COL)
-        {
-            col_idxs_map[i] = -1;
-        }
-        else
-        {
-            col_idxs_map[i] = (int) (col_count++);
-        }
-    }
-    A->n = col_count;
-
-    // -------------------------------------------------------------------------
     //                        update column indices
     // -------------------------------------------------------------------------
+    A->n = new_n_cols;
     for (i = 0; i < A->m; ++i)
     {
         for (j = A->p[i].start; j < A->p[i].end; ++j)
@@ -432,23 +417,15 @@ void print_row_starts(const RowRange *row_ranges, size_t len)
 
 double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_size)
 {
-    int i, start, end, insertion;
     double old_val = 0.0;
-    start = A->p[row].start;
-    end = A->p[row].end;
-    insertion = end;
+    int start = A->p[row].start;
+    int end = A->p[row].end;
 
     // -----------------------------------------------------------------
     //             find where it should be inserted
     // -----------------------------------------------------------------
-    for (i = start; i < end; ++i)
-    {
-        if (A->i[i] >= col)
-        {
-            insertion = i;
-            break;
-        }
-    }
+    int rel_ins = sorted_lower_bound(A->i + start, end - start, col);
+    int insertion = start + rel_ins;
 
     // -----------------------------------------------------------------
     // Insert the new value if it is nonzero. If it exists or should be

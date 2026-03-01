@@ -74,7 +74,7 @@ void free_settings(Settings *stgs)
     PS_FREE(stgs);
 }
 
-Settings *default_settings()
+Settings *default_settings(void)
 {
     Settings *stgs = (Settings *) ps_malloc(1, sizeof(Settings));
     RETURN_PTR_IF_NULL(stgs, NULL);
@@ -84,9 +84,8 @@ Settings *default_settings()
     stgs->parallel_cols = true;
     stgs->primal_propagation = true;
     stgs->dual_fix = true;
-    // stgs->clean_small_coeff = false;
     stgs->finite_bound_tightening = true;
-    stgs->relax_bounds = true;
+    stgs->relax_bounds = false;
     stgs->max_shift = 10;
     stgs->max_time = 60.0;
     stgs->verbose = true;
@@ -151,7 +150,6 @@ void set_settings_true(Settings *stgs)
     stgs->parallel_cols = true;
     stgs->primal_propagation = true;
     stgs->dual_fix = true;
-    // stgs->clean_small_coeff = true;
     stgs->finite_bound_tightening = true;
     stgs->relax_bounds = true;
     stgs->verbose = true;
@@ -165,7 +163,6 @@ void set_settings_false(Settings *stgs)
     stgs->parallel_cols = false;
     stgs->primal_propagation = false;
     stgs->dual_fix = false;
-    // stgs->clean_small_coeff = false;
     stgs->finite_bound_tightening = false;
     stgs->relax_bounds = false;
     stgs->verbose = false;
@@ -263,12 +260,6 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     A = matrix_new_no_extra_space(Ax, Ai, Ap, n_rows, n_cols, nnz);
     if (!A) goto cleanup;
 
-    // commented out for now because does not seem helpful
-    // if (stgs->clean_small_coeff)
-    // {
-    //     clean_small_coeff_A(A, bounds, row_tags, col_tags, rhs_copy, lhs_copy);
-    // }
-
     ps_thread_t thread_id;
     ParallelInitData parallel_data = {A,    work,     n_cols,   n_rows,   lbs,
                                       ubs,  lhs_copy, rhs_copy, bounds,   col_tags,
@@ -314,7 +305,6 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
     presolver->stats = init_stats(A->m, A->n, nnz);
-    // presolver->stats->nnz_removed_trivial = nnz - A->nnz; due to clean_small_coeff
     presolver->reduced_prob =
         (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
     DEBUG(run_debugger(constraints, false));
@@ -461,16 +451,21 @@ static inline PresolveStatus run_trivial_explorers(Problem *prob,
    rows, singleton columns, and simple dual fix. It returns UNCHANGED even if
    the problem was reduced (provided that the problem does not seem infeasible or
    bounded). */
-static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *stgs)
+static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *stgs,
+                                                PresolveStats *stats)
 {
     assert(prob->constraints->state->ston_rows->len == 0);
     assert(prob->constraints->state->empty_rows->len == 0);
     assert(prob->constraints->state->empty_cols->len == 0);
     PresolveStatus status = UNCHANGED;
+    Timer timer;
 
     if (stgs->ston_cols)
     {
+        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         status |= remove_ston_cols(prob);
+        clock_gettime(CLOCK_MONOTONIC, &timer.end);
+        stats->time_ston_cols += GET_ELAPSED_SECONDS(timer);
 
         // after removing singleton columns, there can be new empty columns
         // and singleton rows, but no empty rows
@@ -480,7 +475,10 @@ static inline PresolveStatus run_fast_explorers(Problem *prob, const Settings *s
 
     if (stgs->dton_eq)
     {
+        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         status |= remove_dton_eq_rows(prob, stgs->max_shift);
+        clock_gettime(CLOCK_MONOTONIC, &timer.end);
+        stats->time_dton_rows += GET_ELAPSED_SECONDS(timer);
         // after removing doubleton equality rows, there can be new empty rows,
         // new singleton rows, and new empty columns
         status |= run_trivial_explorers(prob, stgs);
@@ -505,66 +503,57 @@ run_medium_explorers(Problem *prob, const Settings *stgs, PresolveStats *stats)
 
     if (stgs->primal_propagation)
     {
-        // stats
-        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         nnz_before = *nnz;
 
         // the actual reduction
+        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         status |= check_activities(prob);
         status |= propagate_primal(prob, stgs->finite_bound_tightening);
+        clock_gettime(CLOCK_MONOTONIC, &timer.end);
+        stats->time_primal_propagation += GET_ELAPSED_SECONDS(timer);
 
         // after dom prop propagation there can be new empty and ston rows
         status |= run_trivial_explorers(prob, stgs);
         assert(!(status & REDUCED));
         RETURN_IF_NOT_UNCHANGED(status);
-
-        // stats
         stats->nnz_removed_primal_propagation += nnz_before - *nnz;
-        clock_gettime(CLOCK_MONOTONIC, &timer.end);
-        stats->time_primal_propagation += GET_ELAPSED_SECONDS(timer);
     }
 
     if (stgs->parallel_rows)
     {
-        // stats
         nnz_before = *nnz;
-        clock_gettime(CLOCK_MONOTONIC, &timer.start);
 
         // the actual reduction (after removing parallel rows there can
         // be no new empty or ston rows so no need to run trivial presolvers)
+        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         status |= remove_parallel_rows(prob->constraints);
+        clock_gettime(CLOCK_MONOTONIC, &timer.end);
+        stats->time_parallel_rows += GET_ELAPSED_SECONDS(timer);
         assert(prob->constraints->state->empty_rows->len == 0);
         assert(prob->constraints->state->ston_rows->len == 0);
         assert(!(status & REDUCED));
         RETURN_IF_NOT_UNCHANGED(status);
-
-        // stats
         stats->nnz_removed_parallel_rows += nnz_before - *nnz;
-        clock_gettime(CLOCK_MONOTONIC, &timer.end);
-        stats->time_parallel_rows += GET_ELAPSED_SECONDS(timer);
     }
 
     if (stgs->parallel_cols)
     {
-        // stats
         nnz_before = *nnz;
-        clock_gettime(CLOCK_MONOTONIC, &timer.start);
 
         // the actual reduction (after removing parallel columns there can
         // be no new empty rows or empty cols but might be new stonrows, probably
-        // although that's rare but it does happen
+        // although that's rare but it does happen)
+        clock_gettime(CLOCK_MONOTONIC, &timer.start);
         status |= remove_parallel_cols(prob);
+        clock_gettime(CLOCK_MONOTONIC, &timer.end);
+        stats->time_parallel_cols += GET_ELAPSED_SECONDS(timer);
         assert(prob->constraints->state->empty_rows->len == 0);
         assert(prob->constraints->state->empty_cols->len == 0);
         status |= run_trivial_explorers(prob, stgs);
         assert(prob->constraints->state->ston_rows->len == 0);
         assert(!(status & REDUCED));
         RETURN_IF_NOT_UNCHANGED(status);
-
-        // stats
         stats->nnz_removed_parallel_cols += nnz_before - *nnz;
-        clock_gettime(CLOCK_MONOTONIC, &timer.end);
-        stats->time_parallel_cols += GET_ELAPSED_SECONDS(timer);
     }
 
     return status;
@@ -701,7 +690,7 @@ PresolveStatus run_presolver(Presolver *presolver)
         {
             nnz_before_reduction = A->nnz;
             RUN_AND_TIME(run_fast_explorers, inner_timer,
-                         stats->time_fast_reductions, status, prob, stgs);
+                         stats->time_fast_reductions, status, prob, stgs, stats);
             stats->nnz_removed_fast += nnz_before_reduction - A->nnz;
         }
         else if (curr_complexity == MEDIUM)

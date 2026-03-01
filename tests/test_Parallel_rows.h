@@ -100,26 +100,19 @@ static char *test_3_parallel_rows()
     int parallel_rows[5];
     int sparsity_IDs[5];
     int coeff_hashes[5];
+    int radix_aux[5];
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux);
 
-#ifdef _WIN32
     int parallel_rows_correct[] = {0, 4, 1, 3};
-#else
-    int parallel_rows_correct[] = {4, 0, 3, 1};
-#endif
-
     int group_start_correct[] = {0, 2, 4};
     mu_assert("error", ARRAYS_EQUAL_INT(parallel_rows_correct, parallel_rows, 4));
     mu_assert("error", group_start->len == 3);
     mu_assert("error", ARRAYS_EQUAL_INT(group_start_correct, group_start->data, 3));
 
-    printf("end of test_3_parallel_rows\n");
-
     free_matrix(A);
     iVec_free(group_start);
-    printf("finished freeing memory test 3 \n");
     return 0;
 }
 
@@ -207,9 +200,10 @@ static char *test_4_parallel_rows()
     int parallel_rows[1000];
     int sparsity_IDs[1000];
     int coeff_hashes[1000];
+    int radix_aux[1000];
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux);
 
     mu_assert("error group_starts len", group_start->len == 4);
     int group_start_correct[] = {0, 8, 16, 24};
@@ -373,6 +367,7 @@ static char *test_5_parallel_rows()
     int parallel_rows[1000] = {0};
     int sparsity_IDs[1000] = {0};
     int coeff_hashes[1000] = {0};
+    int radix_aux[1000];
 
     row_tags[0] = R_TAG_INACTIVE;
     row_tags[200] = R_TAG_INACTIVE;
@@ -380,7 +375,7 @@ static char *test_5_parallel_rows()
     row_tags[310] = R_TAG_INACTIVE;
 
     find_parallel_rows(A, row_tags, group_start, parallel_rows, sparsity_IDs,
-                       coeff_hashes, R_TAG_INACTIVE);
+                       coeff_hashes, R_TAG_INACTIVE, radix_aux);
 
     mu_assert("error group_starts len", group_start->len == 4);
     // int group_start_correct[] = {0, 8, 14, 20};
@@ -934,19 +929,13 @@ static char *test_14_parallel_rows()
 
     // check A matrix
     double Ax_correct[] = {row0_vals[0], row0_vals[1], row0_vals[2], row0_vals[3],
-                           row0_vals[4], ax[0],        ax[1],        ax[2],
+                           row0_vals[4], row3_vals[0], row3_vals[1], row3_vals[2],
                            row5_vals[0], row5_vals[1], row5_vals[2], row5_vals[3]};
 
     int Ai_correct[] = {row0_cols[0], row0_cols[1], row0_cols[2], row0_cols[3],
                         row0_cols[4], ai[0],        ai[1],        ai[2],
                         row5_cols[0], row5_cols[1], row5_cols[2], row5_cols[3]};
     int Ap_correct[] = {0, 5, 8, 12};
-
-    // printf("A->x:\n");
-    // print_double_array(A->x, A->nnz);
-    // printf("Ax-correct:\n");
-    // print_double_array(Ax_correct, 12);
-    // fflush(stdout);
 
     mu_assert("error Ax", ARRAYS_EQUAL_DOUBLE(Ax_correct, A->x, 12));
     mu_assert("error Ai", ARRAYS_EQUAL_INT(Ai_correct, A->i, 12));
@@ -958,8 +947,8 @@ static char *test_14_parallel_rows()
               ARRAYS_EQUAL_ROWTAG(row_tags_correct, constraints->row_tags, 3));
 
     // check lhs and rhs
-    double lhs_correct[] = {-2.1, b1, -INF};
-    double rhs_correct[] = {3.1, b1, 5};
+    double lhs_correct[] = {-2.1, q2 * b1, -INF};
+    double rhs_correct[] = {3.1, q2 * b1, 5};
     mu_assert("error lhs", ARRAYS_EQUAL_DOUBLE(lhs_correct, constraints->lhs, 3));
     mu_assert("error rhs", ARRAYS_EQUAL_DOUBLE(rhs_correct, constraints->rhs, 3));
 

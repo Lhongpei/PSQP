@@ -302,18 +302,45 @@ static void bounds_shrink(Bound *ptr, int *map, size_t len)
     }
 }
 
+size_t update_column_map(const int *col_sizes, int *map, size_t n_cols)
+{
+    size_t col_count = 0;
+    for (size_t col = 0; col < n_cols; ++col)
+    {
+        if (col_sizes[col] == SIZE_INACTIVE_COL)
+        {
+            map[col] = -1;
+        }
+        else
+        {
+            map[col] = (int) col_count++;
+        }
+    }
+
+    return col_count;
+}
+
 void constraints_clean(Constraints *constraints, Mapping *map, bool remove_all)
 {
     const int *row_sizes = constraints->state->row_sizes;
     const int *col_sizes = constraints->state->col_sizes;
 
-    remove_extra_space(constraints->A, row_sizes, col_sizes, remove_all, map->cols);
-    remove_extra_space(constraints->AT, col_sizes, row_sizes, remove_all, map->rows);
+    size_t new_n_cols = update_column_map(col_sizes, map->cols, constraints->n);
+    remove_extra_space(constraints->A, row_sizes, remove_all, map->cols, new_n_cols);
+
+    size_t new_n_rows = update_column_map(row_sizes, map->rows, constraints->m);
+    (void) new_n_rows;
+
+    /* we don't need these for anything so no need to clean it */
+#if defined(TESTING) || !defined(NDEBUG)
+    remove_extra_space(constraints->AT, col_sizes, remove_all, map->rows,
+                       new_n_rows);
+    rowTagPtr_shrink(constraints->row_tags, map->rows, constraints->m);
+    colTagPtr_shrink(constraints->col_tags, map->cols, constraints->n);
+#endif
 
     dPtr_shrink(constraints->rhs, map->rows, constraints->m);
     dPtr_shrink(constraints->lhs, map->rows, constraints->m);
-    rowTagPtr_shrink(constraints->row_tags, map->rows, constraints->m);
-    colTagPtr_shrink(constraints->col_tags, map->cols, constraints->n);
     bounds_shrink(constraints->bounds, map->cols, constraints->n);
     constraints->m = constraints->A->m;
     constraints->n = constraints->A->n;

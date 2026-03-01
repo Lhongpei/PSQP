@@ -16,18 +16,19 @@
  * limitations under the License.
  */
 
-#ifndef PARALLEL_COLS_H
-#define PARALLEL_COLS_H
+#ifndef RADIX_SORT_H
+#define RADIX_SORT_H
 
-#include "PSLP_status.h"
+#include <stddef.h>
 
-// forward declaration
-struct Problem;
+// LSD radix sort on composite key (sparsity_ID, coeff_hash).
+// Sorts row indices in-place. aux must have space for n ints.
+void radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
+                     const int *coeff_hashes, int *aux);
 
-/* This function finds parallel columns and merges them. It always
-   returns UNCHANGED or UNBNDORINFEAS. When this function finishes, the problem is
-   up to date, and no extra synchronization is needed.
-*/
-PresolveStatus remove_parallel_cols(struct Problem *prob);
+// Parallel version: splits into 4 chunks, sorts in parallel, merges.
+// Falls back to sequential radix_sort_rows for n < 100000.
+void parallel_radix_sort_rows(int *rows, size_t n, const int *sparsity_IDs,
+                              const int *coeff_hashes, int *aux);
 
-#endif // PARALLEL_COLS_H
+#endif /* RADIX_SORT_H */

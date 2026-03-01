@@ -484,8 +484,7 @@ Altered_Activity update_act_bound_change(Activity *act, double coeff,
 void update_activities_bound_change(Activity *activities, const Matrix *A,
                                     const Bound *bounds, const double *vals,
                                     const int *rows, int len, double old_bound,
-                                    double new_bound, double finite_bound,
-                                    bool lower,
+                                    double new_bound, bool finite_bound, bool lower,
                                     iVec *updated_activities HUGE_BOUND_PARAM)
 {
     assert(!IS_HUGE(new_bound) || huge_bound_ok);
@@ -705,14 +704,21 @@ Altered_Activity update_activity_coeff_change(Activity *act, double lb, double u
 #endif
 
     // recompute from scratch if necessary
-    if (act->n_inf_min == 0 && n_inf_min_before == 1)
-    {
-        return MIN_ALTERED_RECOMPUTE;
-    }
+    bool recompute_min = (act->n_inf_min == 0 && n_inf_min_before == 1);
+    bool recompute_max = (act->n_inf_max == 0 && n_inf_max_before == 1);
 
-    if (act->n_inf_max == 0 && n_inf_max_before == 1)
+    if (recompute_max && recompute_min)
+    {
+        assert(new_coeff == 0.0);
+        return MIN_ALTERED_RECOMPUTE | MAX_ALTERED_RECOMPUTE;
+    }
+    else if (recompute_max)
     {
         return MAX_ALTERED_RECOMPUTE;
+    }
+    else if (recompute_min)
+    {
+        return MIN_ALTERED_RECOMPUTE;
     }
 
     return NO_RECOMPUTE;
