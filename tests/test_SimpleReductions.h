@@ -2,7 +2,7 @@
 #define TEST_SIMPLEREDUCTIONS_H
 
 #include "Debugger.h"
-#include "PSLP_API.h"
+#include "PSQP_API.h"
 
 #include "minunit.h"
 #include "test_SimpleReductions.h"

@@ -28,6 +28,9 @@
 #include "Postsolver.h"
 #include "Problem.h"
 #include "RowColViews.h"
+
+/* Note: fix_col now handles objective updates internally via obj parameter,
+ * so no need for external fix_var_in_obj calls */
 #include "State.h"
 
 void delete_fixed_cols_from_problem(Problem *prob)
@@ -116,8 +119,7 @@ void delete_fixed_cols_from_problem(Problem *prob)
                    !IS_EQUAL_FEAS_TOL(lhs[row], rhs[row]));
         }
 
-        // fix variable in the objective
-        fix_var_in_obj(prob->obj, col, ub);
+        // Note: fix_col (called above) now handles objective updates internally
     }
 }
 
@@ -156,7 +158,7 @@ static inline PresolveStatus remove_stonrow(Problem *prob, int row)
         assert(lhs == rhs);
 
         // printf("fixing col %d to %f from row %d \n", k, rhs / aik, row);
-        if (fix_col(constrs, k, rhs / aik, prob->obj->c[k]) == INFEASIBLE)
+        if (fix_col(constrs, k, rhs / aik, prob->obj->c[k], prob->obj) == INFEASIBLE)
         {
             return INFEASIBLE;
         }
@@ -692,7 +694,7 @@ PresolveStatus remove_variables_with_close_bounds(Problem *prob)
         if (IS_EQUAL_FEAS_TOL(bounds[ii].lb, bounds[ii].ub))
         {
             // no need to check return value since bounds are equal
-            fix_col(constraints, (int) ii, bounds[ii].lb, c[ii]);
+            fix_col(constraints, (int) ii, bounds[ii].lb, c[ii], prob->obj);
         }
         else if (bounds[ii].lb > bounds[ii].ub + FEAS_TOL)
         {

@@ -20,8 +20,8 @@
 #include "Activity.h"
 #include "Locks.h"
 #include "Numerics.h"
-#include "PSLP_API.h"
-#include "PSLP_warnings.h"
+#include "PSQP_API.h"
+#include "PSQP_warnings.h"
 #include "Workspace.h"
 #include "utils.h"
 
@@ -57,8 +57,8 @@ State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, size_t n_rows,
     data->work = work;
 
     /* disable conversion compiler warning*/
-    PSLP_DIAG_PUSH();
-    PSLP_DIAG_IGNORE_CONVERSION();
+    PSQP_DIAG_PUSH();
+    PSQP_DIAG_IGNORE_CONVERSION();
 
     size_t len_ston_rows = (size_t) (n_rows * INIT_STON_ROWS_FRACTION);
     size_t len_ston_cols = (size_t) (n_cols * INIT_STON_COLS_FRACTION);
@@ -71,7 +71,7 @@ State *new_state(int *row_sizes, int *col_sizes, Lock *col_locks, size_t n_rows,
     size_t len_rows_delete = (size_t) (n_rows * INIT_ROWS_TO_DELETE_FRACTION);
 
     /* enable conversion compiler warnings */
-    PSLP_DIAG_POP();
+    PSQP_DIAG_POP();
 
     // --------------------------------------------------------------------------
     //                    allocate a bunch of vectors

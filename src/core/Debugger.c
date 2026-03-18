@@ -23,7 +23,7 @@
 #include "Locks.h"
 #include "Matrix.h"
 #include "Numerics.h"
-#include "PSLP_stats.h"
+#include "PSQP_stats.h"
 #include "State.h"
 #include "glbopts.h"
 #include <stdio.h>
@@ -64,7 +64,7 @@ int ASSERT_NO_ZEROS_D(const double *x, size_t len)
 {
     for (size_t i = 0; i < len; ++i)
     {
-        PSLP_ASSERT(x[i] != 0);
+        PSQP_ASSERT(x[i] != 0);
     }
 
     return 0;
@@ -98,7 +98,7 @@ void verify_empty_rows(const Constraints *constraints)
     // verify that all appended rows are empty rows
     for (size_t i = 0; i < empty_rows->len; ++i)
     {
-        PSLP_ASSERT(row_sizes[empty_rows->data[i]] == 0);
+        PSQP_ASSERT(row_sizes[empty_rows->data[i]] == 0);
         lookup[empty_rows->data[i]] = 1;
     }
 
@@ -108,7 +108,7 @@ void verify_empty_rows(const Constraints *constraints)
     {
         if (row_sizes[i] == 0)
         {
-            PSLP_ASSERT(lookup[i]);
+            PSQP_ASSERT(lookup[i]);
         }
     }
 
@@ -125,7 +125,7 @@ void verify_empty_cols(const Constraints *constraints)
     // verify that all appended columns are empty columns
     for (size_t i = 0; i < empty_cols->len; ++i)
     {
-        PSLP_ASSERT(col_sizes[empty_cols->data[i]] == 0);
+        PSQP_ASSERT(col_sizes[empty_cols->data[i]] == 0);
         lookup[empty_cols->data[i]] = 1;
     }
 
@@ -135,7 +135,7 @@ void verify_empty_cols(const Constraints *constraints)
     {
         if (col_sizes[i] == 0)
         {
-            PSLP_ASSERT(lookup[i]);
+            PSQP_ASSERT(lookup[i]);
         }
     }
 
@@ -153,7 +153,7 @@ void verify_ston_cols(const Constraints *constraints)
     // empty/inactive
     for (size_t i = 0; i < ston_cols->len; ++i)
     {
-        PSLP_ASSERT(col_sizes[ston_cols->data[i]] <= 1);
+        PSQP_ASSERT(col_sizes[ston_cols->data[i]] <= 1);
         lookup[ston_cols->data[i]] = 1;
     }
 
@@ -163,7 +163,7 @@ void verify_ston_cols(const Constraints *constraints)
     {
         if (col_sizes[i] == 1)
         {
-            PSLP_ASSERT(lookup[i]);
+            PSQP_ASSERT(lookup[i]);
         }
     }
 
@@ -181,7 +181,7 @@ void verify_ston_rows(const Constraints *constraints)
     for (size_t i = 0; i < ston_rows->len; ++i)
     {
         // if (!colTag.compare(ColTag::kFixed))??
-        PSLP_ASSERT(row_sizes[ston_rows->data[i]] == 1);
+        PSQP_ASSERT(row_sizes[ston_rows->data[i]] == 1);
         lookup[ston_rows->data[i]] = 1;
     }
 
@@ -191,7 +191,7 @@ void verify_ston_rows(const Constraints *constraints)
     {
         if (row_sizes[i] == 1)
         {
-            PSLP_ASSERT(lookup[i]);
+            PSQP_ASSERT(lookup[i]);
         }
     }
 
@@ -211,7 +211,7 @@ void verify_doubleton_rows(const Constraints *constraints)
     for (size_t i = 0; i < doubleton_rows->len; ++i)
     {
         lookup[doubleton_rows->data[i]] = 1;
-        PSLP_ASSERT(row_sizes[doubleton_rows->data[i]] <= 2);
+        PSQP_ASSERT(row_sizes[doubleton_rows->data[i]] <= 2);
         bool condition = HAS_TAG(row_tags[doubleton_rows->data[i]],
                                  (R_TAG_EQ | R_TAG_INACTIVE)) ||
                          row_sizes[doubleton_rows->data[i]] < 2;
@@ -224,7 +224,7 @@ void verify_doubleton_rows(const Constraints *constraints)
                    row_sizes[doubleton_rows->data[i]]);
         }
 
-        PSLP_ASSERT(condition);
+        PSQP_ASSERT(condition);
     }
 
     // verify that all dton rows have been appended using a look-up
@@ -233,7 +233,7 @@ void verify_doubleton_rows(const Constraints *constraints)
     {
         if (row_sizes[i] == 2 && HAS_TAG(row_tags[i], R_TAG_EQ))
         {
-            PSLP_ASSERT(lookup[i]);
+            PSQP_ASSERT(lookup[i]);
         }
     }
 
@@ -252,7 +252,7 @@ void verify_no_duplicates(const iVec *vec)
     {
         for (size_t j = i + 1; j < vec->len; ++j)
         {
-            PSLP_ASSERT(vec->data[i] != vec->data[j]);
+            PSQP_ASSERT(vec->data[i] != vec->data[j]);
         }
     }
 }
@@ -270,8 +270,8 @@ void verify_no_duplicates_sort_ptr(const int *data, size_t len)
 
     for (size_t i = 0; i < len - 1; ++i)
     {
-        PSLP_ASSERT(temp[i] >= 0);
-        PSLP_ASSERT(temp[i] != temp[i + 1]);
+        PSQP_ASSERT(temp[i] >= 0);
+        PSQP_ASSERT(temp[i] != temp[i + 1]);
     }
 
     PS_FREE(temp);
@@ -288,7 +288,7 @@ void verify_no_duplicates_ptr(const int *data, size_t len)
     {
         for (size_t j = i + 1; j < len; ++j)
         {
-            PSLP_ASSERT(data[i] != data[j]);
+            PSQP_ASSERT(data[i] != data[j]);
         }
     }
 }
@@ -297,7 +297,7 @@ void verify_nonnegative_iVec(const iVec *vec)
 {
     for (size_t i = 0; i < vec->len; ++i)
     {
-        PSLP_ASSERT(vec->data[i] >= 0);
+        PSQP_ASSERT(vec->data[i] >= 0);
     }
 }
 
@@ -328,28 +328,28 @@ void verify_row_tags(const Constraints *constraints)
     {
         if (IS_NEG_INF(lhs[i]) && !HAS_TAG(row_tags[i], R_TAG_INACTIVE))
         {
-            PSLP_ASSERT(HAS_TAG(row_tags[i], R_TAG_LHS_INF));
+            PSQP_ASSERT(HAS_TAG(row_tags[i], R_TAG_LHS_INF));
         }
 
         if (IS_POS_INF(rhs[i]) && !HAS_TAG(row_tags[i], R_TAG_INACTIVE))
         {
-            PSLP_ASSERT(HAS_TAG(row_tags[i], R_TAG_RHS_INF));
+            PSQP_ASSERT(HAS_TAG(row_tags[i], R_TAG_RHS_INF));
         }
 
         if (HAS_TAG(row_tags[i], R_TAG_LHS_INF))
         {
-            PSLP_ASSERT(IS_NEG_INF(lhs[i]));
+            PSQP_ASSERT(IS_NEG_INF(lhs[i]));
         }
 
         if (HAS_TAG(row_tags[i], R_TAG_RHS_INF))
         {
-            PSLP_ASSERT(IS_POS_INF(rhs[i]));
+            PSQP_ASSERT(IS_POS_INF(rhs[i]));
         }
 
         if (!HAS_TAG(row_tags[i], R_TAG_LHS_INF) &&
             !HAS_TAG(row_tags[i], R_TAG_RHS_INF) && lhs[i] == rhs[i])
         {
-            PSLP_ASSERT(HAS_TAG(row_tags[i], (R_TAG_EQ | R_TAG_INACTIVE)));
+            PSQP_ASSERT(HAS_TAG(row_tags[i], (R_TAG_EQ | R_TAG_INACTIVE)));
         }
     }
 }
@@ -359,16 +359,16 @@ static void verify_CSR_matrix(const Matrix *A, bool compressed)
     size_t i, nnz;
     int j;
 
-    PSLP_ASSERT(A->n_alloc >= A->nnz);
+    PSQP_ASSERT(A->n_alloc >= A->nnz);
 
     if (A->nnz > 0)
     {
-        PSLP_ASSERT(A->i != NULL && A->x != NULL && A->p != NULL);
+        PSQP_ASSERT(A->i != NULL && A->x != NULL && A->p != NULL);
     }
     // verify that row ranges are ascending
     for (i = 0; i < A->m; ++i)
     {
-        PSLP_ASSERT(A->p[i + 1].start >= A->p[i].end &&
+        PSQP_ASSERT(A->p[i + 1].start >= A->p[i].end &&
                     A->p[i].end >= A->p[i].start);
     }
 
@@ -377,7 +377,7 @@ static void verify_CSR_matrix(const Matrix *A, bool compressed)
     {
         for (j = A->p[i].start + 1; j < A->p[i].end; ++j)
         {
-            PSLP_ASSERT(A->i[j] > A->i[j - 1]);
+            PSQP_ASSERT(A->i[j] > A->i[j - 1]);
         }
     }
 
@@ -387,19 +387,19 @@ static void verify_CSR_matrix(const Matrix *A, bool compressed)
     {
         for (j = A->p[i].start; j < A->p[i].end; ++j)
         {
-            PSLP_ASSERT(A->x[j] != 0);
+            PSQP_ASSERT(A->x[j] != 0);
         }
 
         nnz += (size_t) (A->p[i].end - A->p[i].start);
     }
 
-    PSLP_ASSERT(nnz == A->nnz);
+    PSQP_ASSERT(nnz == A->nnz);
 
     if (compressed)
     {
-        PSLP_ASSERT(A->p[A->m].start == A->nnz);
-        PSLP_ASSERT(A->p[A->m].end == A->nnz);
-        PSLP_ASSERT(A->p[0].start == 0);
+        PSQP_ASSERT(A->p[A->m].start == A->nnz);
+        PSQP_ASSERT(A->p[A->m].end == A->nnz);
+        PSQP_ASSERT(A->p[0].start == 0);
     }
 }
 
@@ -409,9 +409,9 @@ bool verify_A_and_AT_consistency(const Matrix *A, const Matrix *AT)
     Matrix *real_AT = transpose(A, work_n_cols);
 
     // check that nnz and dimensions are consistent
-    PSLP_ASSERT(real_AT->m == AT->m);
-    PSLP_ASSERT(real_AT->n == AT->n);
-    PSLP_ASSERT(real_AT->nnz == AT->nnz);
+    PSQP_ASSERT(real_AT->m == AT->m);
+    PSQP_ASSERT(real_AT->n == AT->n);
+    PSQP_ASSERT(real_AT->nnz == AT->nnz);
 
     size_t i;
     int j, k, start_AT, end_AT, start_real_AT, end_real_AT;
@@ -424,11 +424,11 @@ bool verify_A_and_AT_consistency(const Matrix *A, const Matrix *AT)
         start_real_AT = real_AT->p[i].start;
         end_real_AT = real_AT->p[i].end;
 
-        PSLP_ASSERT(end_AT - start_AT == end_real_AT - start_real_AT);
+        PSQP_ASSERT(end_AT - start_AT == end_real_AT - start_real_AT);
 
         for (j = start_AT, k = start_real_AT; j < end_AT; ++j, ++k)
         {
-            PSLP_ASSERT(!IS_ABS_INF(AT->x[j]) && !IS_ABS_INF(real_AT->x[k]));
+            PSQP_ASSERT(!IS_ABS_INF(AT->x[j]) && !IS_ABS_INF(real_AT->x[k]));
             if (AT->x[j] != real_AT->x[k] || AT->i[j] != real_AT->i[k])
             {
                 PS_FREE(work_n_cols);
@@ -454,7 +454,7 @@ static void verify_no_inactive_cols(const Matrix *A, ColTag *col_tags)
 
         for (j = start; j < end; ++j)
         {
-            PSLP_ASSERT(!HAS_TAG(col_tags[A->i[j]], C_TAG_INACTIVE));
+            PSQP_ASSERT(!HAS_TAG(col_tags[A->i[j]], C_TAG_INACTIVE));
         }
     }
 }
@@ -469,7 +469,7 @@ void verify_A_and_AT(const Constraints *constraints, bool compressed)
     verify_CSR_matrix(AT, compressed);
 
     // verify that A and AT are consistent
-    PSLP_ASSERT(verify_A_and_AT_consistency(A, AT));
+    PSQP_ASSERT(verify_A_and_AT_consistency(A, AT));
 
     // verify that A does not store the coefficients of inactive columns
     verify_no_inactive_cols(A, constraints->col_tags);
@@ -514,27 +514,27 @@ void verify_locks(const Matrix *AT, const Lock *locks, const ColTag *col_tags,
             }
         }
 
-        PSLP_ASSERT(up == locks[col].up);
-        PSLP_ASSERT(down == locks[col].down);
+        PSQP_ASSERT(up == locks[col].up);
+        PSQP_ASSERT(down == locks[col].down);
     }
 }
 
 void verify_empty_when_finished(const Constraints *constraints)
 {
-    PSLP_ASSERT(constraints->state->empty_cols->len == 0);
-    PSLP_ASSERT(constraints->state->empty_rows->len == 0);
-    PSLP_ASSERT(constraints->state->rows_to_delete->len == 0);
-    PSLP_ASSERT(constraints->state->fixed_cols_to_delete->len == 0);
-    PSLP_ASSERT(constraints->state->sub_cols_to_delete->len == 0);
+    PSQP_ASSERT(constraints->state->empty_cols->len == 0);
+    PSQP_ASSERT(constraints->state->empty_rows->len == 0);
+    PSQP_ASSERT(constraints->state->rows_to_delete->len == 0);
+    PSQP_ASSERT(constraints->state->fixed_cols_to_delete->len == 0);
+    PSQP_ASSERT(constraints->state->sub_cols_to_delete->len == 0);
 
     for (int i = 0; i < constraints->A->m; ++i)
     {
-        PSLP_ASSERT(!HAS_TAG(constraints->row_tags[i], R_TAG_INACTIVE));
+        PSQP_ASSERT(!HAS_TAG(constraints->row_tags[i], R_TAG_INACTIVE));
     }
 
     for (int i = 0; i < constraints->A->n; ++i)
     {
-        PSLP_ASSERT(!HAS_TAG(constraints->col_tags[i], C_TAG_INACTIVE));
+        PSQP_ASSERT(!HAS_TAG(constraints->col_tags[i], C_TAG_INACTIVE));
     }
 }
 
@@ -553,17 +553,17 @@ void verify_row_and_col_sizes(const Constraints *constraints)
     {
         if (HAS_TAG(row_tags[i], R_TAG_INACTIVE))
         {
-            PSLP_ASSERT(row_sizes[i] == SIZE_INACTIVE_ROW);
-            PSLP_ASSERT(A->p[i].start == A->p[i].end);
+            PSQP_ASSERT(row_sizes[i] == SIZE_INACTIVE_ROW);
+            PSQP_ASSERT(A->p[i].start == A->p[i].end);
         }
         else
         {
-            PSLP_ASSERT(row_sizes[i] == A->p[i].end - A->p[i].start);
+            PSQP_ASSERT(row_sizes[i] == A->p[i].end - A->p[i].start);
         }
 
         if (row_sizes[i] == SIZE_INACTIVE_ROW)
         {
-            PSLP_ASSERT(HAS_TAG(row_tags[i], R_TAG_INACTIVE));
+            PSQP_ASSERT(HAS_TAG(row_tags[i], R_TAG_INACTIVE));
         }
     }
 
@@ -577,22 +577,22 @@ void verify_row_and_col_sizes(const Constraints *constraints)
                 printf("col_sizes[%d] = %d\n", i, col_sizes[i]);
             }
 
-            PSLP_ASSERT(col_sizes[i] == SIZE_INACTIVE_COL);
+            PSQP_ASSERT(col_sizes[i] == SIZE_INACTIVE_COL);
             if (AT->p[i].start != AT->p[i].end)
             {
                 printf("AT->p[%d].start = %d\n", i, AT->p[i].start);
                 printf("AT->p[%d].end = %d\n", i, AT->p[i].end);
             }
-            PSLP_ASSERT(AT->p[i].start == AT->p[i].end);
+            PSQP_ASSERT(AT->p[i].start == AT->p[i].end);
         }
         else
         {
-            PSLP_ASSERT(col_sizes[i] == AT->p[i].end - AT->p[i].start);
+            PSQP_ASSERT(col_sizes[i] == AT->p[i].end - AT->p[i].start);
         }
 
         if (col_sizes[i] == SIZE_INACTIVE_COL)
         {
-            PSLP_ASSERT(HAS_TAG(col_tags[i], C_TAG_INACTIVE));
+            PSQP_ASSERT(HAS_TAG(col_tags[i], C_TAG_INACTIVE));
         }
     }
 }
@@ -646,8 +646,8 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
         }
     }
 
-    PSLP_ASSERT(n_inf_max == activity.n_inf_max);
-    PSLP_ASSERT(n_inf_min == activity.n_inf_min);
+    PSQP_ASSERT(n_inf_max == activity.n_inf_max);
+    PSQP_ASSERT(n_inf_min == activity.n_inf_min);
 
     // if there is a max infinite contribution, the max activity should be
     // INVALID_ACT_DEBUG
@@ -658,7 +658,7 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
             printf("n_inf_max = %d\n", n_inf_max);
             printf("activity.max = %f\n", activity.max);
         }
-        PSLP_ASSERT(activity.max == INVALID_ACT_DEBUG);
+        PSQP_ASSERT(activity.max == INVALID_ACT_DEBUG);
     }
     else
     {
@@ -673,25 +673,25 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
 
             if (vals[i] > 0)
             {
-                PSLP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_UB_INF) &&
+                PSQP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_UB_INF) &&
                             !IS_POS_INF(bounds[col].ub));
                 max += vals[i] * bounds[col].ub;
             }
             else
             {
-                PSLP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_LB_INF) &&
+                PSQP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_LB_INF) &&
                             !IS_NEG_INF(bounds[col].lb));
                 max += vals[i] * bounds[col].lb;
             }
         }
-        PSLP_ASSERT(ABS(activity.max - max) < 1e-6);
+        PSQP_ASSERT(ABS(activity.max - max) < 1e-6);
     }
 
     // if there is a min infinite contribution, the min activity should be
     // INVALID_ACT_DEBUG
     if (n_inf_min > 0)
     {
-        PSLP_ASSERT(activity.min == INVALID_ACT_DEBUG);
+        PSQP_ASSERT(activity.min == INVALID_ACT_DEBUG);
     }
     else
     {
@@ -706,19 +706,19 @@ void verify_activity(const ColTag *col_tags, const Bound *bounds, Activity activ
 
             if (vals[i] > 0)
             {
-                PSLP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_LB_INF) &&
+                PSQP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_LB_INF) &&
                             !IS_NEG_INF(bounds[col].lb));
                 min += vals[i] * bounds[col].lb;
             }
             else
             {
-                PSLP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_UB_INF) &&
+                PSQP_ASSERT(!HAS_TAG(col_tags[col], C_TAG_UB_INF) &&
                             !IS_POS_INF(bounds[col].ub));
                 min += vals[i] * bounds[col].ub;
             }
         }
 
-        PSLP_ASSERT(ABS(activity.min - min) < 1e-6);
+        PSQP_ASSERT(ABS(activity.min - min) < 1e-6);
     }
 }
 
@@ -744,7 +744,7 @@ void ASSERT_NO_ACTIVE_STON_ROWS(const Matrix *A, const RowTag *row_tags)
 {
     for (int i = 0; i < A->m; ++i)
     {
-        PSLP_ASSERT(A->p[i].end - A->p[i].start != 1 ||
+        PSQP_ASSERT(A->p[i].end - A->p[i].start != 1 ||
                     HAS_TAG(row_tags[i], R_TAG_INACTIVE));
     }
 }
@@ -753,7 +753,7 @@ int ASSERT_INCREASING_I(const int *x, size_t len)
 {
     for (size_t i = 1; i < len; ++i)
     {
-        PSLP_ASSERT(x[i] > x[i - 1]);
+        PSQP_ASSERT(x[i] > x[i - 1]);
     }
 
     return 0;
@@ -783,9 +783,9 @@ void print_matrix(const Matrix *A)
 
 void verify_problem_up_to_date(const Constraints *constraints)
 {
-    PSLP_ASSERT(constraints->state->rows_to_delete->len == 0);
-    PSLP_ASSERT(constraints->state->fixed_cols_to_delete->len == 0);
-    PSLP_ASSERT(constraints->state->sub_cols_to_delete->len == 0);
+    PSQP_ASSERT(constraints->state->rows_to_delete->len == 0);
+    PSQP_ASSERT(constraints->state->fixed_cols_to_delete->len == 0);
+    PSQP_ASSERT(constraints->state->sub_cols_to_delete->len == 0);
 }
 
 void verify_row_states(const Activity *acts, const iVec *updated_activities)
@@ -793,8 +793,8 @@ void verify_row_states(const Activity *acts, const iVec *updated_activities)
     for (int i = 0; i < updated_activities->len; ++i)
     {
         int row = updated_activities->data[i];
-        PSLP_ASSERT(acts[row].status == ADDED);
-        PSLP_ASSERT(acts[row].n_inf_min == 0 || acts[row].n_inf_max == 0);
+        PSQP_ASSERT(acts[row].status == ADDED);
+        PSQP_ASSERT(acts[row].n_inf_min == 0 || acts[row].n_inf_max == 0);
     }
 }
 
@@ -805,13 +805,13 @@ void run_debugger_stats_consistency_check(const PresolveStats *stats)
                            stats->nnz_removed_parallel_rows +
                            stats->nnz_removed_parallel_cols;
 
-    PSLP_ASSERT(stats->nnz_original - stats->nnz_reduced == total_removed);
+    PSQP_ASSERT(stats->nnz_original - stats->nnz_reduced == total_removed);
 
     // valgrind timing is not reliable
 #ifndef RUNNING_ON_VALGRIND
     double time_medium = stats->ps_time_primal_propagation +
                          stats->ps_time_parallel_rows + stats->ps_time_parallel_cols;
-    PSLP_ASSERT((stats->ps_time_medium - time_medium) / MAX(1e-2, time_medium) <
+    PSQP_ASSERT((stats->ps_time_medium - time_medium) / MAX(1e-2, time_medium) <
                 0.05);
 #endif
 }

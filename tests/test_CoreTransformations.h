@@ -31,8 +31,8 @@ static char *test_1_core()
 
     Constraints *constraints = presolver->prob->constraints;
 
-    // fix x2 to 1
-    fix_col(constraints, 1, 1.0, 0);
+    // fix x2 to 1 (NULL for obj means LP, no QP term update needed)
+    fix_col(constraints, 1, 1.0, 0, NULL);
 
     delete_fixed_cols_from_problem(presolver->prob);
 

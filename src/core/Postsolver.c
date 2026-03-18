@@ -27,7 +27,7 @@
 #include "glbopts.h"
 #include "iVec.h"
 #include "u16Vec.h"
-#include <PSLP_warnings.h>
+#include <PSQP_warnings.h>
 #include <assert.h>
 
 #define INIT_FRAC_POSTSOLVE 0.3
@@ -42,12 +42,12 @@ PostsolveInfo *postsolve_info_new(size_t n_rows, size_t n_cols)
     size_t init_size;
 
     /* disable conversion compiler warning*/
-    PSLP_DIAG_PUSH();
-    PSLP_DIAG_IGNORE_CONVERSION();
+    PSQP_DIAG_PUSH();
+    PSQP_DIAG_IGNORE_CONVERSION();
     // plus one to avoid zero size allocations
     init_size = ((size_t) (INIT_FRAC_POSTSOLVE * (n_rows + n_cols))) + 1;
     /* enable conversion compiler warnings */
-    PSLP_DIAG_POP();
+    PSQP_DIAG_POP();
 
     info->starts = iVec_new(init_size);
     info->indices = iVec_new(init_size);
@@ -122,6 +122,32 @@ static void retrieve_fix_col(Solution *sol, int col, double val, double ck,
 
     sol->x[col] = val;
     sol->z[col] = ck;
+    for (int i = 0; i < len; ++i)
+    {
+        assert(sol->y[ak_rows[i]] != ROW_NOT_RETRIEVED);
+        sol->z[col] -= ak_vals[i] * sol->y[ak_rows[i]];
+    }
+}
+
+// QP version: recovers zk = ck + (P*x)_k - ak^T y
+static void retrieve_fix_col_qp(Solution *sol, int col, double val, double ck,
+                                const double *ak_vals, const int *ak_rows, int len,
+                                const double *p_vals, const int *p_cols, int p_len)
+{
+    assert(sol->x[col] == COL_NOT_RETRIEVED);
+    assert(sol->z[col] == COL_NOT_RETRIEVED);
+
+    sol->x[col] = val;
+    sol->z[col] = ck;
+    
+    /* Add quadratic term contribution: (P*x)_k */
+    for (int i = 0; i < p_len; ++i)
+    {
+        assert(sol->x[p_cols[i]] != COL_NOT_RETRIEVED);
+        sol->z[col] += p_vals[i] * sol->x[p_cols[i]];
+    }
+    
+    /* Subtract linear constraint contribution: ak^T y */
     for (int i = 0; i < len; ++i)
     {
         assert(sol->y[ak_rows[i]] != ROW_NOT_RETRIEVED);
@@ -539,6 +565,24 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
             retrieve_fix_col(sol, indices[start], vals[start], vals[start + 1],
                              vals + start + 2, indices + start + 2, len);
         }
+        else if (type == FIXED_COL_QP)
+        {
+            /* QP format: indices = [col, len_A, rows..., len_P, P_cols...]
+             *            vals = [val, ck, vals..., P_vals...] */
+            int col = indices[start];
+            int len_A = indices[start + 1];
+            const int *rows = indices + start + 2;
+            int len_P = indices[start + 2 + len_A];
+            const int *p_cols = indices + start + 3 + len_A;
+            
+            double val = vals[start];
+            double ck = vals[start + 1];
+            const double *a_vals = vals + start + 2;
+            const double *p_vals = vals + start + 2 + len_A;
+            
+            retrieve_fix_col_qp(sol, col, val, ck, a_vals, rows, len_A,
+                                p_vals, p_cols, len_P);
+        }
         else if (type == SUB_COL)
         {
             len = starts[i + 1] - start - 2;
@@ -678,6 +722,31 @@ void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double c
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
     assert(info->vals->len == info->indices->len);
+}
+
+/* QP version: saves both A matrix row and P matrix row */
+void save_retrieval_fixed_col_qp(PostsolveInfo *info, int col, double val, double ck,
+                                 const double *vals, const int *rows, size_t len,
+                                 const double *p_vals, const int *p_cols, size_t p_len)
+{
+    /* Use FIXED_COL_QP type with extended format */
+    /* Format: indices = [col, len_A, rows..., len_P, P_cols...]
+     *         vals = [val, ck, vals..., P_vals...] */
+    
+    u16Vec_append(info->type, FIXED_COL_QP);
+    iVec_append(info->indices, col);
+    iVec_append(info->indices, (int) len);  /* Store len_A */
+    iVec_append_array(info->indices, rows, len);
+    iVec_append(info->indices, (int) p_len);  /* Store len_P */
+    iVec_append_array(info->indices, p_cols, p_len);
+    
+    dVec_append(info->vals, val);
+    dVec_append(info->vals, ck);
+    dVec_append_array(info->vals, vals, len);
+    dVec_append_array(info->vals, p_vals, p_len);
+    
+    iVec_append(info->starts, (int) info->indices->len);
+    assert(info->starts->len == info->type->len + 1);
 }
 
 void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,

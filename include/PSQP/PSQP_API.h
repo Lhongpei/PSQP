@@ -1,7 +1,7 @@
 /*
  * Copyright 2025-2026 Daniel Cederberg
  *
- * This file is part of the PSLP project (LP Presolver).
+ * This file is part of the PSQP project (LP Presolver).
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
  */
 
 /* Public header containing the outward facing API. Together with the other
-   files in the folder "PSLP", it includes the input/output data structs
+   files in the folder "PSQP", it includes the input/output data structs
    and the API functions. */
 #ifndef PRESOLVER_H
 #define PRESOLVER_H
@@ -32,7 +32,7 @@ extern "C"
 #include <stddef.h> // size_t
 #endif
 
-#include "PSLP_status.h"
+#include "PSQP_status.h"
 
     /* forward declarations */
     struct Solution;
@@ -80,6 +80,31 @@ extern "C"
            possibly be taken into account on the solver side when evaluating the
            relative optimality gap of the reduced problem.) */
         double obj_offset;
+
+        /* Quadratic term P for QP problems (optional, NULL for LP)
+         * P is stored in CSR format, upper triangular part only
+         * Objective: (1/2) x^T P x + c^T x + offset */
+        double *Px;
+        int *Pi;
+        int *Pp;
+        size_t Pnnz;
+        bool has_quadratic;
+
+        /* Quadratic term in QR decomposition format: P = Q + R*R^T
+         * These fields are populated when using new_qp_presolver_qr()
+         * Q: sparse symmetric matrix (CSR upper triangular)
+         * R: sparse n x k matrix (CSR format) */
+        double *Qx;     /* Q matrix values */
+        int *Qi;        /* Q matrix column indices */
+        int *Qp;        /* Q matrix row pointers */
+        size_t Qnnz;    /* Q matrix non-zeros */
+        
+        double *Rx;     /* R matrix values */
+        int *Ri;        /* R matrix column indices */
+        int *Rp;        /* R matrix row pointers */
+        size_t Rnnz;    /* R matrix non-zeros */
+        size_t k;       /* number of columns in R (R is n x k) */
+        bool has_quad_qr; /* true if Q and R are stored separately */
     } PresolvedProblem;
 
     /* struct corresponding to the presolver:
@@ -107,7 +132,7 @@ extern "C"
     void set_settings_true(Settings *stgs);
     void set_settings_false(Settings *stgs);
 
-    /* Initialize presolver, allocate memory, and build internal data structures.
+    /* Initialize presolver for LP problems.
        The presolver maintains internal deep copies of Ax, Ai, Ap, lhs, rhs, lbs,
        ubs, and c. The user is responsible for freeing the presolver using
        'free_presolver'. If the allocation fails, the function returns NULL.
@@ -116,6 +141,34 @@ extern "C"
                              size_t m, size_t n, size_t nnz, const double *lhs,
                              const double *rhs, const double *lbs, const double *ubs,
                              const double *c, const Settings *stgs);
+
+    /* Initialize presolver for QP problems with quadratic objective.
+       The quadratic term P should be given in CSR format (upper triangular part only).
+       Objective: (1/2) x^T P x + c^T x
+       All other parameters are the same as new_presolver. */
+    Presolver *new_qp_presolver(const double *Ax, const int *Ai, const int *Ap,
+                                size_t m, size_t n, size_t nnz, const double *lhs,
+                                const double *rhs, const double *lbs, const double *ubs,
+                                const double *c, const double *Px, const int *Pi,
+                                const int *Pp, size_t Pnnz, const Settings *stgs);
+
+    /* Initialize presolver for QP with P = Q + R*R^T decomposition.
+       This is useful when P has a low-rank component R*R^T plus a sparse component Q.
+       
+       Q: sparse symmetric matrix (usually diagonal) in CSR upper triangular format
+       R: sparse n x k matrix in CSR format
+       
+       Objective: (1/2) x^T (Q + R*R^T) x + c^T x
+       
+       Pass NULL/0 for Q if Q = 0, and NULL/0 for R if there is no low-rank component.
+       At least one of Q or R must be non-NULL. */
+    Presolver *new_qp_presolver_qr(const double *Ax, const int *Ai, const int *Ap,
+                                   size_t m, size_t n, size_t nnz, const double *lhs,
+                                   const double *rhs, const double *lbs, const double *ubs,
+                                   const double *c,
+                                   const double *Qx, const int *Qi, const int *Qp, size_t Qnnz,
+                                   const double *Rx, const int *Ri, const int *Rp, size_t Rnnz,
+                                   size_t k, const Settings *stgs);
 
     /* Free the memory allocated for the presolver. */
     void free_presolver(Presolver *presolver);

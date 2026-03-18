@@ -4,7 +4,7 @@
 #include "Activity.h"
 #include "Constraints.h"
 #include "Locks.h"
-#include "PSLP_API.h"
+#include "PSQP_API.h"
 #include "State.h"
 #include "glbopts.h"
 #include "minunit.h"

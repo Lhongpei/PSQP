@@ -3,7 +3,7 @@
 
 #include "DTonsEq.h"
 #include "Debugger.h"
-#include "PSLP_API.h"
+#include "PSQP_API.h"
 
 #include "Constraints.h"
 #include "Problem.h"

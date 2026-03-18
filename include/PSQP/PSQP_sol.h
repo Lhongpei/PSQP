@@ -1,7 +1,7 @@
 /*
  * Copyright 2025-2026 Daniel Cederberg
  *
- * This file is part of the PSLP project (LP Presolver).
+ * This file is part of the PSQP project (LP Presolver).
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#ifndef PSLP_SOL_H
-#define PSLP_SOL_H
+#ifndef PSQP_SOL_H
+#define PSQP_SOL_H
 
 #ifdef __cplusplus
 #include <cstddef> // size_t
@@ -40,4 +40,4 @@ extern "C"
 }
 #endif
 
-#endif // PSLP_SOL_H
+#endif // PSQP_SOL_H

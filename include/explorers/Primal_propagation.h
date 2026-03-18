@@ -21,7 +21,7 @@
 
 #include <stdbool.h>
 
-#include "PSLP_status.h"
+#include "PSQP_status.h"
 #include "Tags.h"
 
 struct Constraints;

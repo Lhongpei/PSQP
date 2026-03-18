@@ -30,7 +30,7 @@
 #include "limits.h" // for INT_MAX
 #include "radix_sort.h"
 #include "utils.h"
-#include <PSLP_warnings.h>
+#include <PSQP_warnings.h>
 #include <math.h> // For round()
 #include <stdint.h>
 
@@ -38,8 +38,8 @@
 static inline uint32_t hash_int_array(const int *arr, int size)
 {
     /* disable sign-conversion compiler warning*/
-    PSLP_DIAG_PUSH();
-    PSLP_DIAG_IGNORE_SIGN_CONVERSION();
+    PSQP_DIAG_PUSH();
+    PSQP_DIAG_IGNORE_SIGN_CONVERSION();
 
     uint32_t hash = 5381;
     for (int i = 0; i < size; i++)
@@ -48,7 +48,7 @@ static inline uint32_t hash_int_array(const int *arr, int size)
     }
 
     /* enable sign-conversion compiler warnings */
-    PSLP_DIAG_POP();
+    PSQP_DIAG_POP();
     return hash;
 }
 

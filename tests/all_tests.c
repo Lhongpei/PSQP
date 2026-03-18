@@ -4,6 +4,11 @@
 #include "test_Parallel_cols.h"
 #include "test_Parallel_rows.h"
 #include "test_Presolver.h"
+#include "test_QP.h"
+#include "test_QR.h"
+#include "test_QR_comprehensive.h"
+#include "test_QR_objective.h"
+#include "test_QR_end2end.h"
 #include "test_SimpleReductions.h"
 #include "test_domain_propagation.h"
 #include "test_dton.h"
@@ -34,6 +39,11 @@ const char *run_all_tests()
 #endif
 
     mu_assert("postsolve error", test_postsolve());
+    mu_assert("qp error", test_qp());
+    mu_assert("qr error", test_qr());
+    mu_assert("qr_comprehensive error", test_qr_comprehensive());
+    mu_assert("qr_objective error", test_qr_objective());
+    mu_assert("qr_end2end error", test_qr_end2end());
 
     return NULL;
 }

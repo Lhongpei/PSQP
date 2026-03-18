@@ -2,7 +2,7 @@
 #define TEST_ston_H
 
 #include "Debugger.h"
-#include "PSLP_API.h"
+#include "PSQP_API.h"
 
 #include "Simple_dual_fix.h"
 #include "StonCols.h"

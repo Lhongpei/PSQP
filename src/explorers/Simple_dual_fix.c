@@ -32,7 +32,7 @@
 static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double ck,
                                               double lb, double ub, Lock lock,
                                               ColTag col_tag, int col,
-                                              iVec *cols_to_inf)
+                                              iVec *cols_to_inf, Objective *obj)
 {
     assert(!HAS_TAG(col_tag, C_TAG_INACTIVE));
 
@@ -47,7 +47,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
         }
 
         assert(!IS_ABS_INF(lb));
-        fix_col(constraints, col, lb, ck);
+        fix_col(constraints, col, lb, ck, obj);
         return UNCHANGED;
     }
 
@@ -62,7 +62,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
         }
 
         assert(!IS_ABS_INF(ub));
-        fix_col(constraints, col, ub, ck);
+        fix_col(constraints, col, ub, ck, obj);
         return UNCHANGED;
     }
 
@@ -85,7 +85,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
             else
             {
                 assert(!IS_ABS_INF(lb));
-                fix_col(constraints, col, lb, ck);
+                fix_col(constraints, col, lb, ck, obj);
             }
             return UNCHANGED;
         }
@@ -99,7 +99,7 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
             else
             {
                 assert(!IS_ABS_INF(ub));
-                fix_col(constraints, col, ub, ck);
+                fix_col(constraints, col, ub, ck, obj);
             }
             return UNCHANGED;
         }
@@ -136,7 +136,8 @@ PresolveStatus simple_dual_fix(Problem *prob)
         // if simple_dual_fix returns UNBNDORINFEAS it will be propagated
         // to run_fast_presolvers where it is detected
         status |= _simple_dual_fix(constraints, c[k], bounds[k].lb, bounds[k].ub,
-                                   locks[k], col_tags[k], (int) k, cols_to_inf);
+                                   locks[k], col_tags[k], (int) k, cols_to_inf,
+                                   prob->obj);
     }
 
     // now fix the columns that can be fixed to inf

@@ -27,7 +27,7 @@
 
 /* Assertion that fires even in release mode (NDEBUG). Only use inside
    the debugger (Debugger.c / Debugger.h) — never in production code. */
-#define PSLP_ASSERT(cond)                                                           \
+#define PSQP_ASSERT(cond)                                                           \
     do                                                                              \
     {                                                                               \
         if (!(cond))                                                                \
@@ -104,7 +104,7 @@ static inline bool ARRAYS_EQUAL_COLTAG(ColTag *arr1, const ColTag *arr2, int siz
     {                                                                               \
         for (int iii = 0; iii < (len); iii++)                                       \
         {                                                                           \
-            PSLP_ASSERT(!HAS_TAG(row_tags[rows[iii]], R_TAG_INACTIVE));             \
+            PSQP_ASSERT(!HAS_TAG(row_tags[rows[iii]], R_TAG_INACTIVE));             \
         }                                                                           \
     } while (0)
 

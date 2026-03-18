@@ -22,7 +22,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "PSLP_sol.h"
+#include "PSQP_sol.h"
 #include "Tags.h"
 
 struct u16Vec;
@@ -49,6 +49,9 @@ enum ReductionTypes
     EQ_TO_INEQ = 1 << 8,
     BOUND_CHANGE_NO_ROW = 1 << 9,
     BOUND_CHANGE_THE_ROW = 1 << 10,
+    
+    // QP support
+    FIXED_COL_QP = 1 << 11,  /* Fixed column with quadratic term */
 };
 
 typedef struct PostsolveInfo
@@ -90,6 +93,15 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
 */
 void save_retrieval_fixed_col(PostsolveInfo *info, int col, double val, double ck,
                               const double *vals, const int *rows, size_t len);
+
+/* QP version: also saves P matrix row for computing zk = ck + (P*x)_k - ak^T y
+ * Stores: indices = [col, len_A, rows..., len_P, P_cols...]
+ *         vals = [val, ck, vals..., P_vals...]
+ * Note: This uses FIXED_COL type with extended format
+ */
+void save_retrieval_fixed_col_qp(PostsolveInfo *info, int col, double val, double ck,
+                                 const double *vals, const int *rows, size_t len,
+                                 const double *p_vals, const int *p_cols, size_t p_len);
 
 /* Saves the information required to retrieve variable xk that was fixed
    to either +INF or -INF.

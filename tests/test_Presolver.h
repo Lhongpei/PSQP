@@ -2,7 +2,7 @@
 #define TEST_PRESOLVER_H
 
 #include "Debugger.h"
-#include "PSLP_API.h"
+#include "PSQP_API.h"
 
 #include "Problem.h"
 #include "Workspace.h"

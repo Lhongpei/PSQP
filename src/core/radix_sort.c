@@ -17,7 +17,7 @@
  */
 
 #include "radix_sort.h"
-#include "pslp_thread.h"
+#include "psqp_thread.h"
 #include <stdint.h>
 #include <string.h>
 

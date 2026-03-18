@@ -21,7 +21,7 @@
 #include "Debugger.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
-#include "PSLP_warnings.h"
+#include "PSQP_warnings.h"
 #include "RowColViews.h"
 #include "glbopts.h"
 #include "stdlib.h"
@@ -200,14 +200,14 @@ size_t calc_memory(size_t nnz, size_t n_rows, size_t extra_row_space,
                    double memory_ratio)
 {
     /* disable conversion compiler warning*/
-    PSLP_DIAG_PUSH();
-    PSLP_DIAG_IGNORE_CONVERSION();
+    PSQP_DIAG_PUSH();
+    PSQP_DIAG_IGNORE_CONVERSION();
 
     /* intentional truncation */
     size_t result = (size_t) (nnz * memory_ratio) + n_rows * extra_row_space;
 
     /* enable conversion compiler warnings */
-    PSLP_DIAG_POP();
+    PSQP_DIAG_POP();
     return result;
 }
 
@@ -548,13 +548,13 @@ Matrix *random_matrix_new(size_t n_rows, size_t n_cols, double density)
     // allocate memory
 
     /* disable conversion compiler warning*/
-    PSLP_DIAG_PUSH();
-    PSLP_DIAG_IGNORE_CONVERSION();
+    PSQP_DIAG_PUSH();
+    PSQP_DIAG_IGNORE_CONVERSION();
     /* intentional truncation */
     size_t n_alloc_nnz = (size_t) (density * n_rows * n_cols);
 
     /* enable conversion compiler warnings */
-    PSLP_DIAG_POP();
+    PSQP_DIAG_POP();
     double *Ax = (double *) ps_malloc(n_alloc_nnz, sizeof(double));
     int *Ai = (int *) ps_malloc(n_alloc_nnz, sizeof(int));
     int *Ap = (int *) ps_malloc(n_rows + 1, sizeof(int));

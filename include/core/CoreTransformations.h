@@ -19,7 +19,7 @@
 #ifndef CORE_TRANSFORMATIONS_H
 #define CORE_TRANSFORMATIONS_H
 
-#include "PSLP_status.h"
+#include "PSQP_status.h"
 #include "Postsolver.h"
 #include "Tags.h"
 #include "debug_macros.h"
@@ -35,12 +35,21 @@ struct ConstColView;
 struct ConstRowView;
 struct Matrix;
 struct Bound;
+struct Constraints;
+struct Objective;  /* Forward declaration */
 
 /* Checks if fixing a column to 'val' is feasible with respect to its bounds.
    If yes, it fixes it and updates the activities. When a variable is fixed we
-   set both its lb and ub to its value. */
+   set both its lb and ub to its value. 
+   If obj is not NULL, also updates the objective function (including QP terms). */
 PresolveStatus fix_col(struct Constraints *constraints, int col, double val,
-                       double ck);
+                       double ck, struct Objective *obj);
+
+/* For QP: fixes a column and updates the quadratic objective 
+ * This version also handles the P matrix updates for quadratic objectives */
+PresolveStatus fix_col_qp(struct Constraints *constraints, int col, double val,
+                          double ck, struct Objective *obj, 
+                          const struct Matrix *P, const struct Matrix *PT);
 
 /* Fixes a variable to infinity and marks the constraints it appears in as
    inactive. */

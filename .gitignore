@@ -73,3 +73,5 @@ out/
 *.swo
 *~
 .DS_Store
+
+doc/

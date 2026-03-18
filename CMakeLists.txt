@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
-project(PSLP LANGUAGES C CXX) # The library is written in C, but we also have some C++ test files
+project(PSQP LANGUAGES C CXX) # QP Presolver, forked from PSLP
 
-set(PSLP_VERSION_MAJOR 0)
-set(PSLP_VERSION_MINOR 0)
-set(PSLP_VERSION_PATCH 8)
-set(PSLP_VERSION "${PSLP_VERSION_MAJOR}.${PSLP_VERSION_MINOR}.${PSLP_VERSION_PATCH}")
-add_compile_definitions(PSLP_VERSION="${PSLP_VERSION}")
+set(PSQP_VERSION_MAJOR 0)
+set(PSQP_VERSION_MINOR 1)
+set(PSQP_VERSION_PATCH 0)
+set(PSQP_VERSION "${PSQP_VERSION_MAJOR}.${PSQP_VERSION_MINOR}.${PSQP_VERSION_PATCH}")
+add_compile_definitions(PSQP_VERSION="${PSQP_VERSION}")
 
-message(STATUS "Configuring PSLP (version ${PSLP_VERSION})")
+message(STATUS "Configuring PSQP (version ${PSQP_VERSION}) - QP Presolver forked from PSLP")
 
 include(GNUInstallDirs)
 
@@ -59,7 +59,7 @@ file(GLOB CORE_SOURCES CONFIGURE_DEPENDS
 
 # distinguish between public and private headers
 set(PUBLIC_HEADERS
-  include/PSLP/PSLP_API.h
+  include/PSQP/PSQP_API.h
  
 )
 
@@ -82,12 +82,12 @@ else()
     message(STATUS "Debugger enabled")
 endif()
 
-# Create PSLP library
-add_library(PSLP ${CORE_SOURCES})
-target_include_directories(PSLP
+# Create PSQP library
+add_library(PSQP ${CORE_SOURCES})
+target_include_directories(PSQP
   PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/PSLP>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/PSQP>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/PSQP>
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/core>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures>
@@ -96,20 +96,20 @@ target_include_directories(PSLP
 
 # Common compile options
 if (MSVC)
-  target_compile_options(PSLP PRIVATE /W4)
+  target_compile_options(PSQP PRIVATE /W4)
   set(CMAKE_DEBUG_POSTFIX "d")
-  set_target_properties(PSLP PROPERTIES DEBUG_POSTFIX "d")
-  set_target_properties(PSLP PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
-  target_compile_definitions(PSLP PRIVATE PSLP_EXPORTS)
-  target_compile_options(PSLP PRIVATE
+  set_target_properties(PSQP PROPERTIES DEBUG_POSTFIX "d")
+  set_target_properties(PSQP PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+  target_compile_definitions(PSQP PRIVATE PSLP_EXPORTS)
+  target_compile_options(PSQP PRIVATE
     $<$<CONFIG:Debug>:/Od>
     $<$<CONFIG:Release>:/O2 /DNDEBUG>
     $<$<CONFIG:RelWithDebInfo>:/O2 /DNDEBUG>
     $<$<CONFIG:MinSizeRel>:/O1 /DNDEBUG>
   )
 else()
-  target_compile_options(PSLP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare -Wconversion)
-  target_compile_options(PSLP PRIVATE
+  target_compile_options(PSQP PRIVATE -Wall -Wextra -Wpedantic -Wno-sign-compare -Wconversion)
+  target_compile_options(PSQP PRIVATE
     $<$<CONFIG:Debug>:-g -O0>
     $<$<CONFIG:Release>:-O3 -DNDEBUG>
     $<$<CONFIG:RelWithDebInfo>:-O2 -g -DNDEBUG>
@@ -119,36 +119,36 @@ else()
 endif()
 
 if(ENABLE_DEBUGGER OR CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_compile_definitions(PSLP PRIVATE DEBUGGER_ENABLED)
+    target_compile_definitions(PSQP PRIVATE DEBUGGER_ENABLED)
 else()
-    target_compile_definitions(PSLP PRIVATE NDEBUG)
+    target_compile_definitions(PSQP PRIVATE NDEBUG)
 endif()
 
 # Link pthread library or compatibility layer
 if(NOT WIN32)
     find_package(Threads REQUIRED)
-    target_link_libraries(PSLP PRIVATE Threads::Threads)
+    target_link_libraries(PSQP PRIVATE Threads::Threads)
 endif()
 
 # Testing
-option(PSLP_BUILD_TESTING "Build PSLP tests" OFF)
-if(PSLP_BUILD_TESTING)
+option(PSQP_BUILD_TESTING "Build PSLP tests" OFF)
+if(PSQP_BUILD_TESTING)
   include(CTest)
   enable_testing()
-  message(STATUS "PSLP testing enabled (this should be disabled for production builds!!!)")
+  message(STATUS "PSQP testing enabled (this should be disabled for production builds!!!)")
 
   add_executable(all_tests tests/all_tests.c tests/test_macros.c)
 
-  # Link PSLP library
-  target_link_libraries(all_tests PRIVATE PSLP)
-  target_compile_definitions(PSLP PRIVATE TESTING)
+  # Link PSQP library
+  target_link_libraries(all_tests PRIVATE PSQP)
+  target_compile_definitions(PSQP PRIVATE TESTING)
 
     # Add include directories explicitly for the test target
   target_include_directories(all_tests PRIVATE
       ${CMAKE_CURRENT_SOURCE_DIR}/include/core
       ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
       ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
-      ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/PSQP
   )
 
   target_compile_definitions(all_tests PRIVATE TESTING)
@@ -160,7 +160,7 @@ endif()
 
 # Link math library on UNIX
 if(UNIX)
-  target_link_libraries(PSLP PRIVATE m)
+  target_link_libraries(PSQP PRIVATE m)
 endif()
 
 option(COVERAGE "Enable coverage reporting" OFF)
@@ -173,42 +173,52 @@ if(COVERAGE)
 endif()
 
 add_executable(test_cpp EXCLUDE_FROM_ALL tests/test_cpp.cpp)
-target_link_libraries(test_cpp PRIVATE PSLP)
+target_link_libraries(test_cpp PRIVATE PSQP)
+
+# QR example executable
+add_executable(qr_example EXCLUDE_FROM_ALL tests/qr_example.c)
+target_link_libraries(qr_example PRIVATE PSQP)
+target_include_directories(qr_example PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
+)
 
 # Installation and export
-install(TARGETS PSLP
-  EXPORT PSLPTargets
+install(TARGETS PSQP
+  EXPORT PSQPTargets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PSLP
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PSQP
 )
 
-install(FILES ${PUBLIC_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PSLP)
+install(FILES ${PUBLIC_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/PSQP)
 
 # Export the targets file
-install(EXPORT PSLPTargets
-  FILE PSLPTargets.cmake
-  NAMESPACE PSLP::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PSLP
+install(EXPORT PSQPTargets
+  FILE PSQPTargets.cmake
+  NAMESPACE PSQP::
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PSQP
 )
 
 # Create and install Config file
 include(CMakePackageConfigHelpers)
 configure_package_config_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PSLPConfig.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/PSLPConfig.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PSLP
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/PSQPConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/PSQPConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PSQP
 )
 
 write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/PSLPConfigVersion.cmake
-  VERSION ${PSLP_VERSION}
+  ${CMAKE_CURRENT_BINARY_DIR}/PSQPConfigVersion.cmake
+  VERSION ${PSQP_VERSION}
   COMPATIBILITY AnyNewerVersion
 )
 
 install(FILES
-  ${CMAKE_CURRENT_BINARY_DIR}/PSLPConfig.cmake
-  ${CMAKE_CURRENT_BINARY_DIR}/PSLPConfigVersion.cmake
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PSLP
+  ${CMAKE_CURRENT_BINARY_DIR}/PSQPConfig.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/PSQPConfigVersion.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PSQP
 )

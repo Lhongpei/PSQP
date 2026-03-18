@@ -1,5 +1,5 @@
-#ifndef PSLP_STATUS_H
-#define PSLP_STATUS_H
+#ifndef PSQP_STATUS_H
+#define PSQP_STATUS_H
 
 #include <stdint.h>
 
@@ -22,4 +22,4 @@ extern "C"
 }
 #endif
 
-#endif // PSLP_STATUS_H
+#endif // PSQP_STATUS_H

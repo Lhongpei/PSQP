@@ -28,9 +28,9 @@
 
 // Portable UNUSED macro
 #if defined(_MSC_VER)
-#define PSLP_UNUSED
+#define PSQP_UNUSED
 #else
-#define PSLP_UNUSED __attribute__((unused))
+#define PSQP_UNUSED __attribute__((unused))
 #endif
 
 // Macro to define a generic vector class
@@ -42,7 +42,7 @@
         size_t capacity;                                                            \
     } TYPE_NAME##Vec;                                                               \
                                                                                     \
-    PSLP_UNUSED static TYPE_NAME##Vec *TYPE_NAME##Vec_new(size_t capacity)          \
+    PSQP_UNUSED static TYPE_NAME##Vec *TYPE_NAME##Vec_new(size_t capacity)          \
     {                                                                               \
         assert(capacity > 0);                                                       \
         TYPE_NAME##Vec *vec =                                                       \
@@ -119,7 +119,7 @@
         memcpy(vec->data + vec->len, values, n * sizeof(TYPE));                     \
         vec->len += n;                                                              \
     }                                                                               \
-    PSLP_UNUSED static int TYPE_NAME##Vec_contains(const TYPE_NAME##Vec *vec,       \
+    PSQP_UNUSED static int TYPE_NAME##Vec_contains(const TYPE_NAME##Vec *vec,       \
                                                    TYPE value)                      \
     {                                                                               \
         for (size_t i = 0; i < vec->len; ++i)                                       \

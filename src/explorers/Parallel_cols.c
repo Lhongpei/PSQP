@@ -216,7 +216,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[k].lb));
-                    fix_col(constraints, k, bounds[k].lb, ck);
+                    fix_col(constraints, k, bounds[k].lb, ck, prob->obj);
                     continue;
                 }
                 else if (fix_xk_to_upper)
@@ -228,7 +228,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[k], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[k].ub));
-                    fix_col(constraints, k, bounds[k].ub, ck);
+                    fix_col(constraints, k, bounds[k].ub, ck, prob->obj);
                     continue;
                 }
 
@@ -242,7 +242,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[j].lb));
-                    fix_col(constraints, j, bounds[j].lb, cj);
+                    fix_col(constraints, j, bounds[j].lb, cj, prob->obj);
                     recount_ninfs = false;
                     //  break from checking if xj is parallel to other cols since
                     //  we fix it
@@ -257,7 +257,7 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
 
                     assert(!HAS_TAG(col_tags[j], C_TAG_INACTIVE));
                     assert(!IS_ABS_INF(bounds[j].ub));
-                    fix_col(constraints, j, bounds[j].ub, cj);
+                    fix_col(constraints, j, bounds[j].ub, cj, prob->obj);
                     recount_ninfs = false;
                     //  break from checking if xj is parallel to other cols since
                     //  we fix it

@@ -19,7 +19,7 @@
 #ifndef STONCOLS_HPP
 #define STONCOLS_HPP
 
-#include "PSLP_status.h"
+#include "PSQP_status.h"
 
 // forward declaration
 struct Problem;

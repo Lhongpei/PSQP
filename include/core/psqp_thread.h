@@ -1,5 +1,5 @@
-#ifndef PSLP_THREAD_H
-#define PSLP_THREAD_H
+#ifndef PSQP_THREAD_H
+#define PSQP_THREAD_H
 
 #if defined(_WIN32) || defined(_WIN64)
 
@@ -57,4 +57,4 @@ static inline int ps_thread_join(ps_thread_t *thread, void **retval)
 
 #endif /* Windows / POSIX */
 
-#endif /* PSLP_THREAD_H */
+#endif /* PSQP_THREAD_H */

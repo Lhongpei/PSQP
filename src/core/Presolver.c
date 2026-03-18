@@ -25,10 +25,10 @@
 #include "Matrix.h"
 #include "Memory_wrapper.h"
 #include "Numerics.h"
-#include "PSLP_API.h"
-#include "PSLP_sol.h"
-#include "PSLP_stats.h"
-#include "PSLP_status.h"
+#include "PSQP_API.h"
+#include "PSQP_sol.h"
+#include "PSQP_stats.h"
+#include "PSQP_status.h"
 #include "Parallel_cols.h"
 #include "Parallel_rows.h"
 #include "Postsolver.h"
@@ -45,7 +45,7 @@
 #include "dVec.h"
 #include "glbopts.h"
 #include "iVec.h"
-#include "pslp_thread.h"
+#include "psqp_thread.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -300,7 +300,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     //             Allocate the actual presolver
     // ---------------------------------------------------------------------------
     presolver = (Presolver *) ps_malloc(1, sizeof(Presolver));
-    obj = objective_new(c_copy);
+    obj = objective_new(c_copy, NULL);  /* LP: no quadratic term */
     if (!presolver || !obj) goto cleanup;
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
@@ -337,6 +337,153 @@ cleanup:
         col_sizes, row_tags, locks,    activities, data,   constraints,
         presolver, obj,      col_tags, bounds,     work};
     presolver_clean_up(scope);
+}
+    return NULL;
+}
+
+Presolver *new_qp_presolver(const double *Ax, const int *Ai, const int *Ap, size_t m,
+                            size_t n, size_t nnz, const double *lhs, const double *rhs,
+                            const double *lbs, const double *ubs, const double *c,
+                            const double *Px, const int *Pi, const int *Pp,
+                            size_t Pnnz, const Settings *stgs)
+{
+    Timer timer;
+    clock_gettime(CLOCK_MONOTONIC, &timer.start);
+    Matrix *A = NULL, *AT = NULL;
+    double *lhs_copy = NULL, *rhs_copy = NULL, *c_copy = NULL;
+    int *row_sizes = NULL, *col_sizes = NULL;
+    RowTag *row_tags = NULL;
+    Lock *locks = NULL;
+    Activity *activities = NULL;
+    State *data = NULL;
+    Constraints *constraints = NULL;
+    Presolver *presolver = NULL;
+    Objective *obj = NULL;
+    ColTag *col_tags = NULL;
+    Bound *bounds = NULL;
+    Work *work = NULL;
+    QuadTerm *quad = NULL;
+
+    //  ---------------------------------------------------------------------------
+    //   Copy data and allocate memory. For an exact specification of the
+    //   workspace, see the workspace class. The problem object owns all the
+    //   memory that is allocated in this block of code (and therefore frees it).
+    //  ---------------------------------------------------------------------------
+    size_t n_rows = m;
+    size_t n_cols = n;
+    lhs_copy = (double *) ps_malloc(n_rows, sizeof(double));
+    rhs_copy = (double *) ps_malloc(n_rows, sizeof(double));
+    c_copy = (double *) ps_malloc(n_cols, sizeof(double));
+    col_tags = (ColTag *) ps_calloc(n_cols, sizeof(ColTag));
+    bounds = (Bound *) ps_malloc(n_cols, sizeof(Bound));
+    work = new_work(n_rows, n_cols);
+    row_sizes = (int *) ps_malloc(n_rows, sizeof(int));
+    col_sizes = (int *) ps_malloc(n_cols, sizeof(int));
+
+    if (!lhs_copy || !rhs_copy || !c_copy || !col_tags || !bounds || !work ||
+        !row_sizes || !col_sizes)
+    {
+        goto cleanup;
+    }
+
+    memcpy(lhs_copy, lhs, n_rows * sizeof(double));
+    memcpy(rhs_copy, rhs, n_rows * sizeof(double));
+    memcpy(c_copy, c, n_cols * sizeof(double));
+
+    // ---------------------------------------------------------------------------
+    //  Create quadratic term if provided
+    // ---------------------------------------------------------------------------
+    if (Px != NULL && Pnnz > 0)
+    {
+        quad = quad_term_new(Px, Pi, Pp, Pnnz, n_cols);
+        if (!quad) goto cleanup;
+    }
+
+    // ---------------------------------------------------------------------------
+    //  Build bounds, row tags, A and AT. We first build A, then in parallel
+    //  we build AT (main thread) and some other things (second thread).
+    // ---------------------------------------------------------------------------
+    A = matrix_new_no_extra_space(Ax, Ai, Ap, n_rows, n_cols, nnz);
+    if (!A) goto cleanup;
+
+    ps_thread_t thread_id;
+    ParallelInitData parallel_data = {A,    work,     n_cols,   n_rows,   lbs,
+                                      ubs,  lhs_copy, rhs_copy, bounds,   col_tags,
+                                      NULL, NULL,     NULL,     row_sizes};
+
+    ps_thread_create(&thread_id, NULL, init_thread_func, &parallel_data);
+
+    // Main thread: Transpose A and count rows
+    AT = transpose(A, work->iwork_n_cols);
+    if (!AT)
+    {
+        ps_thread_join(&thread_id, NULL);
+        goto cleanup;
+    }
+    count_rows(AT, col_sizes);
+
+    // sync threads
+    ps_thread_join(&thread_id, NULL);
+
+    row_tags = parallel_data.row_tags;
+    if (!row_tags) goto cleanup;
+    locks = parallel_data.locks;
+    activities = parallel_data.activities;
+    if (!locks || !activities) goto cleanup;
+
+    // ---------------------------------------------------------------------------
+    //  Initialize internal data and constraints
+    // ---------------------------------------------------------------------------
+    data = new_state(row_sizes, col_sizes, locks, n_rows, n_cols, activities, work,
+                     row_tags);
+
+    if (!data) goto cleanup;
+    constraints =
+        constraints_new(A, AT, lhs_copy, rhs_copy, bounds, data, row_tags, col_tags);
+    if (!constraints) goto cleanup;
+
+    // ---------------------------------------------------------------------------
+    //             Allocate the actual presolver
+    // ---------------------------------------------------------------------------
+    presolver = (Presolver *) ps_malloc(1, sizeof(Presolver));
+    obj = objective_new(c_copy, quad);  /* QP: with quadratic term */
+    if (!presolver || !obj) goto cleanup;
+    presolver->stgs = stgs;
+    presolver->prob = new_problem(constraints, obj);
+    presolver->stats = init_stats(A->m, A->n, nnz);
+    presolver->stats->nnz_removed_trivial = nnz - (size_t) A->nnz; /* explicit 0's */
+    presolver->reduced_prob =
+        (PresolvedProblem *) ps_calloc(1, sizeof(PresolvedProblem));
+    DEBUG(run_debugger(constraints, false));
+
+    // ---------------------------------------------------------------------------
+    //           Allocate space for returning the solution
+    // ---------------------------------------------------------------------------
+    presolver->sol = (Solution *) ps_malloc(1, sizeof(Solution));
+    if (!presolver->sol) goto cleanup;
+    presolver->sol->x = (double *) ps_malloc(n_cols, sizeof(double));
+    presolver->sol->y = (double *) ps_malloc(n_rows, sizeof(double));
+    presolver->sol->z = (double *) ps_malloc(n_cols, sizeof(double));
+    presolver->sol->dim_x = n_cols;
+    presolver->sol->dim_y = n_rows;
+    if (!presolver->sol->x || !presolver->sol->y || !presolver->sol->z)
+    {
+        goto cleanup;
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &timer.end);
+    presolver->stats->time_init = GET_ELAPSED_SECONDS(timer);
+
+    return presolver;
+
+cleanup:
+{
+    struct clean_up_scope scope = {
+        A,         AT,       lhs_copy, rhs_copy,   c_copy, row_sizes,
+        col_sizes, row_tags, locks,    activities, data,   constraints,
+        presolver, obj,      col_tags, bounds,     work};
+    presolver_clean_up(scope);
+    free_quad_term(quad);
 }
     return NULL;
 }
@@ -565,6 +712,7 @@ void populate_presolved_problem(Presolver *presolver)
     PresolvedProblem *reduced_prob = presolver->reduced_prob;
     Constraints *constraints = presolver->prob->constraints;
     Matrix *A = constraints->A;
+    Objective *obj = presolver->prob->obj;
     reduced_prob->m = A->m;
     reduced_prob->n = A->n;
     reduced_prob->nnz = A->nnz;
@@ -572,8 +720,8 @@ void populate_presolved_problem(Presolver *presolver)
     reduced_prob->Ai = A->i;
     reduced_prob->rhs = constraints->rhs;
     reduced_prob->lhs = constraints->lhs;
-    reduced_prob->c = presolver->prob->obj->c;
-    reduced_prob->obj_offset = presolver->prob->obj->offset;
+    reduced_prob->c = obj->c;
+    reduced_prob->obj_offset = obj->offset;
 
     // create bounds arrays
     reduced_prob->lbs = (double *) malloc(A->n * sizeof(double));
@@ -590,13 +738,84 @@ void populate_presolved_problem(Presolver *presolver)
     {
         reduced_prob->Ap[i] = A->p[i].start;
     }
+
+    // populate quadratic term if present (P matrix format)
+    if (obj->quad != NULL && obj->quad->has_quad)
+    {
+        reduced_prob->has_quadratic = true;
+        reduced_prob->Pnnz = obj->quad->nnz;
+        reduced_prob->Px = obj->quad->Px;
+        reduced_prob->Pi = obj->quad->Pi;
+        reduced_prob->Pp = obj->quad->Pp;
+        /* Move ownership from quad to reduced_prob to prevent double-free */
+        obj->quad->Px = NULL;
+        obj->quad->Pi = NULL;
+        obj->quad->Pp = NULL;
+        obj->quad->nnz = 0;
+        obj->quad->has_quad = false;
+        
+        /* No QR format */
+        reduced_prob->has_quad_qr = false;
+        reduced_prob->Qx = NULL; reduced_prob->Qi = NULL; reduced_prob->Qp = NULL;
+        reduced_prob->Rx = NULL; reduced_prob->Ri = NULL; reduced_prob->Rp = NULL;
+        reduced_prob->Qnnz = 0; reduced_prob->Rnnz = 0; reduced_prob->k = 0;
+    }
+    // populate quadratic term if present (QR format: P = Q + R*R^T)
+    else if (obj->quad_qr != NULL && obj->quad_qr->has_quad)
+    {
+        reduced_prob->has_quadratic = false;  /* P is not stored explicitly */
+        reduced_prob->Pnnz = 0;
+        reduced_prob->Px = NULL;
+        reduced_prob->Pi = NULL;
+        reduced_prob->Pp = NULL;
+        
+        /* QR format */
+        reduced_prob->has_quad_qr = true;
+        reduced_prob->Qnnz = obj->quad_qr->Qnnz;
+        reduced_prob->Rnnz = obj->quad_qr->Rnnz;
+        reduced_prob->k = obj->quad_qr->k;
+        
+        /* Q matrix */
+        reduced_prob->Qx = obj->quad_qr->Qx;
+        reduced_prob->Qi = obj->quad_qr->Qi;
+        reduced_prob->Qp = obj->quad_qr->Qp;
+        
+        /* R matrix */
+        reduced_prob->Rx = obj->quad_qr->Rx;
+        reduced_prob->Ri = obj->quad_qr->Ri;
+        reduced_prob->Rp = obj->quad_qr->Rp;
+        
+        /* Move ownership from quad_qr to reduced_prob to prevent double-free */
+        obj->quad_qr->Qx = NULL;
+        obj->quad_qr->Qi = NULL;
+        obj->quad_qr->Qp = NULL;
+        obj->quad_qr->Rx = NULL;
+        obj->quad_qr->Ri = NULL;
+        obj->quad_qr->Rp = NULL;
+        obj->quad_qr->Qnnz = 0;
+        obj->quad_qr->Rnnz = 0;
+        obj->quad_qr->has_quad = false;
+    }
+    else
+    {
+        reduced_prob->has_quadratic = false;
+        reduced_prob->Pnnz = 0;
+        reduced_prob->Px = NULL;
+        reduced_prob->Pi = NULL;
+        reduced_prob->Pp = NULL;
+        
+        reduced_prob->has_quad_qr = false;
+        reduced_prob->Qx = NULL; reduced_prob->Qi = NULL; reduced_prob->Qp = NULL;
+        reduced_prob->Rx = NULL; reduced_prob->Ri = NULL; reduced_prob->Rp = NULL;
+        reduced_prob->Qnnz = 0; reduced_prob->Rnnz = 0; reduced_prob->k = 0;
+    }
 }
 
 static inline void print_start_message(const PresolveStats *stats)
 {
     printf("\n\t       PSLP v%s - LP presolver \n\t(c) Daniel "
            "Cederberg, Stanford University, 2025\n",
-           PSLP_VERSION);
+           PSQP_VERSION);
     printf("Original problem:  %zu rows, %zu columns, %zu nnz\n",
            stats->n_rows_original, stats->n_cols_original, stats->nnz_original);
 }
@@ -783,6 +1002,23 @@ void free_presolver(Presolver *presolver)
         PS_FREE(presolver->reduced_prob->Ap);
         PS_FREE(presolver->reduced_prob->lbs);
         PS_FREE(presolver->reduced_prob->ubs);
+        /* Free quadratic term if present (P matrix format) */
+        if (presolver->reduced_prob->has_quadratic)
+        {
+            PS_FREE(presolver->reduced_prob->Px);
+            PS_FREE(presolver->reduced_prob->Pi);
+            PS_FREE(presolver->reduced_prob->Pp);
+        }
+        /* Free quadratic term if present (QR format) */
+        if (presolver->reduced_prob->has_quad_qr)
+        {
+            PS_FREE(presolver->reduced_prob->Qx);
+            PS_FREE(presolver->reduced_prob->Qi);
+            PS_FREE(presolver->reduced_prob->Qp);
+            PS_FREE(presolver->reduced_prob->Rx);
+            PS_FREE(presolver->reduced_prob->Ri);
+            PS_FREE(presolver->reduced_prob->Rp);
+        }
         PS_FREE(presolver->reduced_prob);
     }
 

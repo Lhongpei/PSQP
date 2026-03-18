@@ -17,19 +17,14 @@ jobs:
 
     # ---- BUILD ----
     - name: Configure
-      run: cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug -DPSLP_BUILD_TESTING=ON .
+      run: cmake -DCOVERAGE=ON -DCMAKE_BUILD_TYPE=Debug -DPSQP_BUILD_TESTING=ON .
 
     - name: Build
       run: make -j
 
     # ---- RUN TESTS ----
     - name: Run tests
-      run: |
-        if [ -f "CTestTestfile.cmake" ]; then
-          ctest --output-on-failure
-        else
-          bin/all_tests          
-        fi
+      run: ./all_tests
 
     # ---- GENERATE COVERAGE ----
     - name: Generate coverage

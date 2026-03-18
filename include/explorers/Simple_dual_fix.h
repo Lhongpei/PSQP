@@ -19,7 +19,7 @@
 #ifndef SIMPLE_DUAL_FIX_H
 #define SIMPLE_DUAL_FIX_H
 
-#include "PSLP_status.h"
+#include "PSQP_status.h"
 
 // forward declaration
 struct Problem;

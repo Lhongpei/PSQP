@@ -27,7 +27,8 @@
 #include "RowColViews.h"
 #include "State.h"
 
-PresolveStatus fix_col(Constraints *constraints, int col, double val, double ck)
+PresolveStatus fix_col(struct Constraints *constraints, int col, double val, double ck,
+                       struct Objective *obj)
 {
     State *data = constraints->state;
     const Matrix *A = constraints->A;
@@ -52,8 +53,26 @@ PresolveStatus fix_col(Constraints *constraints, int col, double val, double ck)
     int len = AT->p[col].end - AT->p[col].start;
 
     set_col_to_fixed(col, col_tag, data->fixed_cols_to_delete);
-    save_retrieval_fixed_col(data->postsolve_info, col, val, ck, vals, rows,
-                             (size_t) len);
+    
+    /* Save postsolve info - use QP version if quadratic term exists */
+    if (obj != NULL && obj->quad != NULL && obj->quad->has_quad)
+    {
+        /* Get P matrix row for this column */
+        QuadTerm *quad = obj->quad;
+        int p_row_start = quad->Pp[col];
+        int p_row_end = quad->Pp[col + 1];
+        int p_len = p_row_end - p_row_start;
+        const double *p_vals = quad->Px + p_row_start;
+        const int *p_cols = quad->Pi + p_row_start;
+        
+        save_retrieval_fixed_col_qp(data->postsolve_info, col, val, ck, vals, rows,
+                                    (size_t) len, p_vals, p_cols, (size_t) p_len);
+    }
+    else
+    {
+        save_retrieval_fixed_col(data->postsolve_info, col, val, ck, vals, rows,
+                                 (size_t) len);
+    }
 
     bool ub_update = (is_ub_inf || val != old_ub);
     bool lb_update = (is_lb_inf || val != old_lb);
@@ -63,6 +82,19 @@ PresolveStatus fix_col(Constraints *constraints, int col, double val, double ck)
     update_activities_fixed_col(data->activities, A, bounds, vals, rows, len, old_ub,
                                 old_lb, val, ub_update, lb_update, is_ub_inf,
                                 is_lb_inf, data->updated_activities);
+
+    /* Update objective function if provided (handles both LP and QP) */
+    if (obj != NULL)
+    {
+        if (obj->quad != NULL && obj->quad->has_quad)
+        {
+            fix_var_in_obj_qp(obj, col, val);
+        }
+        else
+        {
+            fix_var_in_obj(obj, col, val);
+        }
+    }
 
     return REDUCED;
 }

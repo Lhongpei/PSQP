@@ -3,7 +3,7 @@
 
 #include "Debugger.h"
 #include "Matrix.h"
-#include "PSLP_API.h"
+#include "PSQP_API.h"
 #include "Parallel_rows.h"
 
 #include "math.h"
