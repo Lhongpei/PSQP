@@ -63,7 +63,7 @@ The public C API is defined in `PSLP_API.h`. The API consists of three main oper
 }
 
 
-@software{PSQP2026,
+@software{li2026psqp,
   author = {Hongpei Li},
   title = {PSQP — A Lightweight C Presolver for Quadratic Programs},
   year = {2026},
