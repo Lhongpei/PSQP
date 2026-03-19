@@ -614,7 +614,7 @@ PresolveStatus bound_tightening_single_row(const ConstRowView *row,
                                               arg1, updater_lb, updater_ub,
                                               &num_of_bound_changes);
 
-    // dual postsolve if a bound change occured (this assumes primal propagation. We
+    // dual postsolve if a bound change occurred (this assumes primal propagation. We
     // must make sure this is not called during dual propagation)
     if (num_of_bound_changes > 0)
     {

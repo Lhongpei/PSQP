@@ -1,7 +1,8 @@
 /*
  * Copyright 2025-2026 Daniel Cederberg
+ * Copyright 2026 Hongpei Li
  *
- * This file is part of the PSQP project (LP Presolver).
+ * This file is part of the PSQP project (QP Presolver).
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.

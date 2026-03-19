@@ -1,7 +1,7 @@
 /*
  * QP Presolver Usage Example
  * 
- * This file demonstrates how to use PSLP's QP presolver API.
+ * This file demonstrates how to use PSQP's QP presolver API.
  * 
  * Problem format:
  *   minimize    (1/2) * x^T * P * x + c^T * x
@@ -298,7 +298,7 @@ void example_lp_through_qp()
 int main()
 {
     printf("========================================\n");
-    printf("   PSLP QP Presolver Examples\n");
+    printf("   PSQP QP Presolver Examples\n");
     printf("========================================\n");
     
     example_portfolio_qp();

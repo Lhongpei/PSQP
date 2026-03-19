@@ -1,6 +1,6 @@
 /*
  * Copyright 2025-2026 Daniel Cederberg
- * Copyright 2026 [Your Name]
+ * Copyright 2026 Hongpei Li
  *
  * This file is part of the PSQP project (QP Presolver).
  *

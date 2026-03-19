@@ -13,7 +13,7 @@ $$
 \end{array}
 $$
 
-where $Q$ is a sparse symmetric matrix and $R$ is a sparse $n \times k$ matrix with $k \ll n$. This $P = Q + RR^T$ structure is common in **factor models** (e.g., portfolio optimization: $P = D + FF^T$) and enables memory-efficient handling of large-scale QPs.
+where $Q$ is a sparse symmetric matrix and $R$ is a sparse $n \times k$ matrix with $k \ll n$. This $P = Q + RR^T$ structure enables memory-efficient handling of large-scale QPs.
 
 **PSQP** extends [PSLP](https://github.com/dance858/PSLP) with full QP support. It is written in C99 with no external dependencies. For LPs, simply pass $Q = 0$ and $R = 0$.
 
@@ -49,78 +49,23 @@ The public C API is defined in `PSLP_API.h`. The API consists of three main oper
 
 3. **Postsolve** — performed using `postsolve()`, which recovers a primal-dual solution to the original problem from a solution to the reduced problem.
 
-### Quick Example
-
-```c
-#include "PSQP_API.h"
-
-// Problem data
-size_t n = 100;  // variables
-size_t m = 10;   // constraints
-size_t k = 5;    // factors
-
-// Q matrix (diagonal)
-double Qx[] = {...}; int Qi[] = {...}; int Qp[] = {...};
-
-// R matrix (n x k factor loadings)
-double Rx[] = {...}; int Ri[] = {...}; int Rp[] = {...};
-
-// Create presolver
-Settings *stgs = default_settings();
-Presolver *presolver = new_qp_presolver_qr(
-    Ax, Ai, Ap, m, n, Annz,      // Constraints
-    lhs, rhs, lbs, ubs, c,       // Bounds & linear objective
-    Qx, Qi, Qp, Qnnz,            // Q matrix (NULL if no Q)
-    Rx, Ri, Rp, Rnnz, k,         // R matrix (NULL if no R)
-    stgs
-);
-
-// Presolve
-run_presolver(presolver);
-PresolvedProblem *reduced = presolver->reduced_prob;
-
-// Access reduced Q and R
-if (reduced->has_quad_qr) {
-    // reduced->Qx, Qi, Qp  (shrinked Q)
-    // reduced->Rx, Ri, Rp  (shrinked R)
-    // reduced->k             (preserved)
-}
-
-// Postsolve after solving reduced problem
-postsolve(presolver, x_reduced, y_reduced, z_reduced);
-// Original solution now in presolver->sol->x
-```
-
-See [EXAMPLES.md](EXAMPLES.md) for detailed examples, including portfolio optimization and standard QP ($P$ matrix) usage.
 
 ---
-
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [EXAMPLES.md](EXAMPLES.md) | Detailed usage examples |
-| [QR_IMPLEMENTATION.md](QR_IMPLEMENTATION.md) | QR format technical details |
-| [TESTING.md](TESTING.md) | Testing guide |
-
----
-
-## Citation
 
 ```bibtex
 @software{Cederberg2025,
-  author = {Cederberg, Daniel},
+  author = {Cederberg, Daniel and Boyd, Stephen},
   title = {PSLP — A Lightweight C Presolver for Linear Programs},
   year = {2025},
   url = {https://github.com/dance858/PSLP},
 }
 
+
 @software{PSQP2026,
-  author = {[Your Name]},
+  author = {Hongpei Li},
   title = {PSQP — A Lightweight C Presolver for Quadratic Programs},
   year = {2026},
-  note = {QP extension with QR decomposition support},
-  url = {https://github.com/[your]/PSQP}
+  url = {https://github.com/Lhongpei/PSQP}
 }
 ```
 
@@ -130,4 +75,4 @@ See [EXAMPLES.md](EXAMPLES.md) for detailed examples, including portfolio optimi
 
 Licensed under the Apache License, Version 2.0.  
 Original PSLP code Copyright 2025 Daniel Cederberg.  
-QP extensions Copyright 2026 [Your Name].
+QP extensions Copyright 2026 Hongpei Li.
