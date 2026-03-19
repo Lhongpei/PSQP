@@ -15,7 +15,7 @@ $$
 
 where $Q$ is a sparse symmetric matrix and $R$ is a sparse $n \times k$ matrix with $k \ll n$. This $P = Q + RR^T$ structure enables memory-efficient handling of large-scale QPs.
 
-**PSQP** extends [PSLP](https://github.com/dance858/PSLP) with full QP support. It is written in C99 with no external dependencies. For LPs, simply pass $Q = 0$ and $R = 0$.
+**PSQP** extends [PSLP](https://github.com/dance858/PSLP) with full QP support. It is written in C99 with no external dependencies.
 
 ---
 
