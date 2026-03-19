@@ -52,6 +52,8 @@ The public C API is defined in `PSLP_API.h`. The API consists of three main oper
 
 ---
 
+## Citation
+
 ```bibtex
 @software{Cederberg2025,
   author = {Cederberg, Daniel and Boyd, Stephen},
