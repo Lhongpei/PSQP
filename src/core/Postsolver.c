@@ -568,7 +568,7 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
         else if (type == FIXED_COL_QP)
         {
             /* QP format: indices = [col, len_A, rows..., len_P, P_cols...]
-             *            vals = [val, ck, vals..., P_vals...] */
+             *            vals = [val, ck, vals..., DUMMY_VALUE, P_vals...] */
             int col = indices[start];
             int len_A = indices[start + 1];
             const int *rows = indices + start + 2;
@@ -578,7 +578,8 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
             double val = vals[start];
             double ck = vals[start + 1];
             const double *a_vals = vals + start + 2;
-            const double *p_vals = vals + start + 2 + len_A;
+            /* Skip DUMMY_VALUE at vals[start + 2 + len_A] */
+            const double *p_vals = vals + start + 3 + len_A;
             
             retrieve_fix_col_qp(sol, col, val, ck, a_vals, rows, len_A,
                                 p_vals, p_cols, len_P);
@@ -731,7 +732,10 @@ void save_retrieval_fixed_col_qp(PostsolveInfo *info, int col, double val, doubl
 {
     /* Use FIXED_COL_QP type with extended format */
     /* Format: indices = [col, len_A, rows..., len_P, P_cols...]
-     *         vals = [val, ck, vals..., P_vals...] */
+     *         vals = [val, ck, vals..., DUMMY_VALUE, P_vals...] 
+     * 
+     * Note: DUMMY_VALUE is added to vals to maintain length consistency with indices,
+     * matching the format used in save_retrieval_fixed_col */
     
     u16Vec_append(info->type, FIXED_COL_QP);
     iVec_append(info->indices, col);
@@ -743,10 +747,13 @@ void save_retrieval_fixed_col_qp(PostsolveInfo *info, int col, double val, doubl
     dVec_append(info->vals, val);
     dVec_append(info->vals, ck);
     dVec_append_array(info->vals, vals, len);
+    dVec_append(info->vals, DUMMY_VALUE);  /* Padding to match indices length */
     dVec_append_array(info->vals, p_vals, p_len);
     
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
+    /* After adding DUMMY_VALUE, vals and indices should have same length */
+    assert(info->vals->len == info->indices->len);
 }
 
 void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
