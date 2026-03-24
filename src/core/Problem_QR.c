@@ -547,6 +547,7 @@ void clean_zero_entries_qr(QuadTermQR *qr, double tol)
 }
 
 /* Extract rows of R that have only a single non-zero entry and move them to Q diagonal.
+ * If the target column already has a Q diagonal entry, the values are ADDED.
  * Returns number of rows extracted.
  */
 size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
@@ -568,32 +569,9 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
     
     if (single_nnz_rows == 0) return 0;
     
-    /* Calculate additional Q storage needed */
-    size_t additional_q_nnz = single_nnz_rows;
-    size_t new_Qnnz = qr->Qnnz + additional_q_nnz;
-    
-    /* Allocate new Q arrays */
-    double *new_Qx = (double *)ps_malloc(new_Qnnz, sizeof(double));
-    int *new_Qi = (int *)ps_malloc(new_Qnnz, sizeof(int));
-    int *new_Qp = (int *)ps_malloc(n + 1, sizeof(int));
-    
-    if (!new_Qx || !new_Qi || !new_Qp)
-    {
-        PS_FREE(new_Qx);
-        PS_FREE(new_Qi);
-        PS_FREE(new_Qp);
-        return 0;
-    }
-    
     /* Build row map: which rows to keep in R */
     int *row_keep = (int *)ps_malloc(k, sizeof(int));
-    if (!row_keep)
-    {
-        PS_FREE(new_Qx);
-        PS_FREE(new_Qi);
-        PS_FREE(new_Qp);
-        return 0;
-    }
+    if (!row_keep) return 0;
     
     int new_row_idx = 0;
     for (int row = 0; row < k; row++)
@@ -608,48 +586,149 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
     
     int k_new = new_row_idx;
     
-    /* Copy existing Q entries */
-    memcpy(new_Qx, qr->Qx, qr->Qnnz * sizeof(double));
-    memcpy(new_Qi, qr->Qi, qr->Qnnz * sizeof(int));
-    memcpy(new_Qp, qr->Qp, (n + 1) * sizeof(int));
+    /* For each extracted row, find which column it targets and check if that
+     * column already has a Q diagonal entry */
+    /* extracted_col[i] = target column of i-th extracted row */
+    /* extracted_val[i] = R value of i-th extracted row */
+    int *extracted_cols = (int *)ps_malloc(single_nnz_rows, sizeof(int));
+    double *extracted_vals = (double *)ps_malloc(single_nnz_rows, sizeof(double));
+    if (!extracted_cols || !extracted_vals)
+    {
+        PS_FREE(row_keep);
+        PS_FREE(extracted_cols);
+        PS_FREE(extracted_vals);
+        return 0;
+    }
     
-    /* Add extracted rows to Q diagonal */
-    size_t q_idx = qr->Qnnz;
+    int ext_idx = 0;
     for (int row = 0; row < k; row++)
     {
         if (row_keep[row] < 0)
         {
-            /* Extract this row */
             int idx = qr->Rp[row];
-            double val = qr->Rx[idx];
-            int col = qr->Ri[idx];
-            
-            /* Add val^2 to Q[col,col] */
+            extracted_vals[ext_idx] = qr->Rx[idx];
+            extracted_cols[ext_idx] = qr->Ri[idx];
+            ext_idx++;
+        }
+    }
+    
+    /* Find existing Q diagonal entries and count merges */
+    /* has_q_diag[col] = index into Q arrays if column col has a diagonal entry, -1 otherwise */
+    int *has_q_diag = (int *)ps_malloc(n, sizeof(int));
+    if (!has_q_diag)
+    {
+        PS_FREE(row_keep);
+        PS_FREE(extracted_cols);
+        PS_FREE(extracted_vals);
+        return 0;
+    }
+    for (int i = 0; i < n; i++)
+        has_q_diag[i] = -1;
+    
+    if (qr->Qx != NULL && qr->Qnnz > 0)
+    {
+        for (int row = 0; row < n; row++)
+        {
+            int q_start = qr->Qp[row];
+            int q_end = qr->Qp[row + 1];
+            for (int idx = q_start; idx < q_end; idx++)
+            {
+                if (qr->Qi[idx] == row)  /* Diagonal entry */
+                {
+                    has_q_diag[row] = idx;
+                    break;
+                }
+            }
+        }
+    }
+    
+    /* Count how many extracted rows can be merged into existing Q diagonals */
+    int merge_count = 0;
+    for (int i = 0; i < single_nnz_rows; i++)
+    {
+        int col = extracted_cols[i];
+        if (has_q_diag[col] >= 0)
+            merge_count++;
+    }
+    
+    /* New Q size: existing + new entries - merges */
+    size_t new_Qnnz = qr->Qnnz + single_nnz_rows - merge_count;
+    
+    /* Allocate new Q arrays */
+    double *new_Qx = (double *)ps_malloc(new_Qnnz, sizeof(double));
+    int *new_Qi = (int *)ps_malloc(new_Qnnz, sizeof(int));
+    int *new_Qp = (int *)ps_malloc(n + 1, sizeof(int));
+    
+    if (!new_Qx || !new_Qi || !new_Qp)
+    {
+        PS_FREE(row_keep);
+        PS_FREE(extracted_cols);
+        PS_FREE(extracted_vals);
+        PS_FREE(has_q_diag);
+        PS_FREE(new_Qx);
+        PS_FREE(new_Qi);
+        PS_FREE(new_Qp);
+        return 0;
+    }
+    
+    /* Copy existing Q entries */
+    if (qr->Qx != NULL && qr->Qnnz > 0)
+    {
+        memcpy(new_Qx, qr->Qx, qr->Qnnz * sizeof(double));
+        memcpy(new_Qi, qr->Qi, qr->Qnnz * sizeof(int));
+        memcpy(new_Qp, qr->Qp, (n + 1) * sizeof(int));
+        
+        /* Add val^2 to existing diagonal entries */
+        for (int i = 0; i < single_nnz_rows; i++)
+        {
+            int col = extracted_cols[i];
+            if (has_q_diag[col] >= 0)
+            {
+                double val = extracted_vals[i];
+                new_Qx[has_q_diag[col]] += val * val;
+            }
+        }
+    }
+    else
+    {
+        /* No existing Q - initialize empty Qp */
+        memset(new_Qp, 0, (n + 1) * sizeof(int));
+    }
+    
+    /* Add new Q diagonal entries for columns that didn't have one */
+    size_t q_idx = qr->Qnnz;
+    for (int i = 0; i < single_nnz_rows; i++)
+    {
+        int col = extracted_cols[i];
+        if (has_q_diag[col] < 0)  /* No existing diagonal - add new entry */
+        {
+            double val = extracted_vals[i];
             new_Qx[q_idx] = val * val;
             new_Qi[q_idx] = col;
             q_idx++;
         }
     }
     
-    /* Sort Q entries by row (column index in this transpose representation) */
-    /* Simple insertion sort for small arrays */
-    for (size_t i = qr->Qnnz + 1; i < new_Qnnz; i++)
+    /* Sort new Q entries by column index */
+    if (qr->Qnnz < new_Qnnz)  /* Only if we added new entries */
     {
-        double val = new_Qx[i];
-        int col = new_Qi[i];
-        size_t j = i;
-        while (j > qr->Qnnz && new_Qi[j-1] > col)
+        for (size_t i = qr->Qnnz + 1; i < new_Qnnz; i++)
         {
-            new_Qx[j] = new_Qx[j-1];
-            new_Qi[j] = new_Qi[j-1];
-            j--;
+            double val = new_Qx[i];
+            int col = new_Qi[i];
+            size_t j = i;
+            while (j > qr->Qnnz && new_Qi[j-1] > col)
+            {
+                new_Qx[j] = new_Qx[j-1];
+                new_Qi[j] = new_Qi[j-1];
+                j--;
+            }
+            new_Qx[j] = val;
+            new_Qi[j] = col;
         }
-        new_Qx[j] = val;
-        new_Qi[j] = col;
     }
     
     /* Rebuild Qp */
-    /* First count entries per row */
     int *row_counts = (int *)ps_calloc(n, sizeof(int));
     for (size_t i = 0; i < new_Qnnz; i++)
         row_counts[new_Qi[i]]++;
@@ -668,6 +747,11 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
     qr->Qi = new_Qi;
     qr->Qp = new_Qp;
     qr->Qnnz = new_Qnnz;
+    
+    /* Cleanup */
+    PS_FREE(extracted_cols);
+    PS_FREE(extracted_vals);
+    PS_FREE(has_q_diag);
     
     /* Build new R with remaining rows */
     if (k_new == 0)
