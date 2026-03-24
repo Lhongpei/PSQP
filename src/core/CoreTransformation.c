@@ -55,18 +55,47 @@ PresolveStatus fix_col(struct Constraints *constraints, int col, double val, dou
     set_col_to_fixed(col, col_tag, data->fixed_cols_to_delete);
     
     /* Save postsolve info - use QP version if quadratic term exists */
-    if (obj != NULL && obj->quad != NULL && obj->quad->has_quad)
+    if (obj != NULL && obj->quad_qr != NULL && obj->quad_qr->has_quad)
     {
         /* Get P matrix row for this column */
-        QuadTerm *quad = obj->quad;
-        int p_row_start = quad->Pp[col];
-        int p_row_end = quad->Pp[col + 1];
-        int p_len = p_row_end - p_row_start;
-        const double *p_vals = quad->Px + p_row_start;
-        const int *p_cols = quad->Pi + p_row_start;
+        /* Use new QR format */
+        (void)ck;
+        QuadTermQR *qr = obj->quad_qr;
+        /* Extract Q row and R^T row */
+        const double *q_vals = NULL;
+        const int *q_cols = NULL;
+        size_t q_len = 0;
+        if (qr->Qx != NULL && qr->Qp != NULL)
+        {
+            int q_start = qr->Qp[col];
+            int q_end = qr->Qp[col + 1];
+            q_len = (size_t)(q_end - q_start);
+            if (q_len > 0)
+            {
+                q_vals = qr->Qx + q_start;
+                q_cols = qr->Qi + q_start;
+            }
+        }
         
-        save_retrieval_fixed_col_qp(data->postsolve_info, col, val, ck, vals, rows,
-                                    (size_t) len, p_vals, p_cols, (size_t) p_len);
+        const double *rt_vals = NULL;
+        const int *rt_cols = NULL;
+        size_t rt_len = 0;
+        if (qr->RTx != NULL && qr->RTp != NULL)
+        {
+            int rt_start = qr->RTp[col];
+            int rt_end = qr->RTp[col + 1];
+            rt_len = (size_t)(rt_end - rt_start);
+            if (rt_len > 0)
+            {
+                rt_vals = qr->RTx + rt_start;
+                rt_cols = qr->RTi + rt_start;
+            }
+        }
+        
+        save_retrieval_fixed_col_qp_qr(data->postsolve_info, col, val, ck, 
+                                       vals, rows, (size_t) len,
+                                       q_vals, q_cols, q_len,
+                                       rt_vals, rt_cols, rt_len);
     }
     else
     {
@@ -86,7 +115,7 @@ PresolveStatus fix_col(struct Constraints *constraints, int col, double val, dou
     /* Update objective function if provided (handles both LP and QP) */
     if (obj != NULL)
     {
-        if (obj->quad != NULL && obj->quad->has_quad)
+        if (obj->quad_qr != NULL && obj->quad_qr->has_quad)
         {
             fix_var_in_obj_qp(obj, col, val);
         }

@@ -108,13 +108,33 @@ Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap
         return NULL;
     }
 
-    memcpy(A->x, Ax, nnz * sizeof(double));
-    memcpy(A->i, Ai, nnz * sizeof(int));
-
-    for (int i = 0; i <= n_rows; ++i)
+    /* Handle empty matrix case (nnz=0 or NULL pointers) */
+    if (nnz > 0 && Ax != NULL && Ai != NULL)
     {
-        A->p[i].start = Ap[i];
-        A->p[i].end = Ap[i + 1];
+        memcpy(A->x, Ax, nnz * sizeof(double));
+        memcpy(A->i, Ai, nnz * sizeof(int));
+    }
+
+    /* Handle row pointers - when n_rows=0, Ap can be NULL or must have at least 1 element */
+    if (n_rows == 0)
+    {
+        /* Empty matrix: single entry p[0] = {0, 0} */
+        A->p[0].start = 0;
+        A->p[0].end = 0;
+    }
+    else if (Ap != NULL)
+    {
+        for (int i = 0; i <= n_rows; ++i)
+        {
+            A->p[i].start = Ap[i];
+            A->p[i].end = Ap[i + 1];
+        }
+    }
+    else
+    {
+        /* Ap is NULL but n_rows > 0 - this is an error */
+        free_matrix(A);
+        return NULL;
     }
 
     /* the presolver assumes that only nonzero entries are stored */

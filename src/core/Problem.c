@@ -90,64 +90,6 @@ static void transpose_matrix(const double *Ax, const int *Ai, const int *Ap,
     PS_FREE(col_counts);
 }
 
-QuadTerm *quad_term_new(const double *Px, const int *Pi, const int *Pp, size_t nnz,
-                        size_t n)
-{
-    if (nnz == 0 || Px == NULL)
-    {
-        return NULL;
-    }
-
-    QuadTerm *quad = (QuadTerm *) ps_malloc(1, sizeof(QuadTerm));
-    RETURN_PTR_IF_NULL(quad, NULL);
-
-    quad->nnz = nnz;
-    quad->has_quad = true;
-
-    /* Allocate and copy P matrix data */
-    quad->Px = (double *) ps_malloc(nnz, sizeof(double));
-    quad->Pi = (int *) ps_malloc(nnz, sizeof(int));
-    quad->Pp = (int *) ps_malloc(n + 1, sizeof(int));
-
-    if (!quad->Px || !quad->Pi || !quad->Pp)
-    {
-        free_quad_term(quad);
-        return NULL;
-    }
-
-    memcpy(quad->Px, Px, nnz * sizeof(double));
-    memcpy(quad->Pi, Pi, nnz * sizeof(int));
-    memcpy(quad->Pp, Pp, (n + 1) * sizeof(int));
-    
-    /* Create transpose for efficient column access */
-    transpose_matrix(Px, Pi, Pp, &quad->PTx, &quad->PTi, &quad->PTp, n, n, nnz);
-
-    return quad;
-}
-
-void free_quad_term(QuadTerm *quad)
-{
-    RETURN_IF_NULL(quad);
-    PS_FREE(quad->Px);
-    PS_FREE(quad->Pi);
-    PS_FREE(quad->Pp);
-    PS_FREE(quad->PTx);
-    PS_FREE(quad->PTi);
-    PS_FREE(quad->PTp);
-    PS_FREE(quad);
-}
-
-Objective *objective_new(double *c, QuadTerm *quad)
-{
-    Objective *obj = (Objective *) ps_malloc(1, sizeof(Objective));
-    RETURN_PTR_IF_NULL(obj, NULL);
-    obj->c = c;
-    obj->offset = 0.0;
-    obj->quad = quad;
-    obj->quad_qr = NULL;
-
-    return obj;
-}
 
 Objective *objective_new_qr(double *c, QuadTermQR *quad_qr)
 {
@@ -155,7 +97,6 @@ Objective *objective_new_qr(double *c, QuadTermQR *quad_qr)
     RETURN_PTR_IF_NULL(obj, NULL);
     obj->c = c;
     obj->offset = 0.0;
-    obj->quad = NULL;
     obj->quad_qr = quad_qr;
 
     return obj;
@@ -165,7 +106,6 @@ void free_objective(Objective *obj)
 {
     RETURN_IF_NULL(obj);
     PS_FREE(obj->c);
-    free_quad_term(obj->quad);
     free_quad_term_qr(obj->quad_qr);
     PS_FREE(obj);
 }
@@ -189,168 +129,12 @@ void fix_var_in_obj_qp(Objective *obj, int col, double value)
     if (obj->quad_qr != NULL && obj->quad_qr->has_quad)
     {
         fix_var_in_obj_qp_qr(obj->quad_qr, col, value, &obj->offset, obj->c);
-        return;
-    }
-
-    /* Quadratic term contribution: (1/2) * P_ii * value^2 + sum_{j!=i} P_ij * value * x_j */
-    if (obj->quad == NULL || !obj->quad->has_quad)
-    {
-        return;
-    }
-
-    QuadTerm *quad = obj->quad;
-    
-    /* Use PT (transpose of P) to efficiently access column 'col' of P */
-    /* PT stores P in CSC format, so PT column 'col' contains all non-zeros in P row 'col' */
-    if (quad->PTp != NULL) {
-        int col_start = quad->PTp[col];
-        int col_end = quad->PTp[col + 1];
-        
-        for (int idx = col_start; idx < col_end; ++idx) {
-            int row = quad->PTi[idx];  /* row in original P matrix */
-            double pval = quad->PTx[idx];
-            
-            if (row == col) {
-                /* Diagonal term: (1/2) * P_ii * value^2 */
-                obj->offset += 0.5 * pval * value * value;
-            } else {
-                /* Off-diagonal term: P_ij * value * x_j
-                 * Add to c[j]: P_ij * value (symmetric, so also affects row j) */
-                obj->c[row] += pval * value;
-            }
-        }
     }
 }
 
 /* Shrink quadratic term P by removing fixed/substituted columns
  * This function filters out rows/columns corresponding to deleted variables
  * and re-indexes the remaining entries */
-static void quad_term_shrink(QuadTerm *quad, int *col_map, size_t n_cols_old)
-{
-    if (quad == NULL || !quad->has_quad || quad->nnz == 0)
-    {
-        return;
-    }
-    
-    /* Count new columns (active columns) */
-    size_t n_cols_new = 0;
-    for (size_t i = 0; i < n_cols_old; i++)
-    {
-        if (col_map[i] >= 0)
-        {
-            n_cols_new++;
-        }
-    }
-    
-    /* If no columns were removed, nothing to do */
-    if (n_cols_new == n_cols_old)
-    {
-        return;
-    }
-    
-    if (n_cols_new == 0)
-    {
-        /* All columns removed - clear P matrix */
-        PS_FREE(quad->Px);
-        PS_FREE(quad->Pi);
-        PS_FREE(quad->Pp);
-        PS_FREE(quad->PTx);
-        PS_FREE(quad->PTi);
-        PS_FREE(quad->PTp);
-        quad->nnz = 0;
-        quad->has_quad = false;
-        return;
-    }
-    
-    /* First pass: count new nnz (only keeping entries where both row and col are active) */
-    size_t new_nnz = 0;
-    for (size_t i = 0; i < n_cols_old; i++)
-    {
-        if (col_map[i] < 0) continue;  /* Skip deleted rows */
-        
-        int row_start = quad->Pp[i];
-        int row_end = quad->Pp[i + 1];
-        for (int idx = row_start; idx < row_end; idx++)
-        {
-            int col = quad->Pi[idx];
-            if (col_map[col] >= 0)  /* Keep only if column is also active */
-            {
-                new_nnz++;
-            }
-        }
-    }
-    
-    if (new_nnz == 0)
-    {
-        /* No quadratic terms left */
-        PS_FREE(quad->Px);
-        PS_FREE(quad->Pi);
-        PS_FREE(quad->Pp);
-        PS_FREE(quad->PTx);
-        PS_FREE(quad->PTi);
-        PS_FREE(quad->PTp);
-        quad->nnz = 0;
-        quad->has_quad = false;
-        return;
-    }
-    
-    /* Allocate new arrays */
-    double *new_Px = (double *) ps_malloc(new_nnz, sizeof(double));
-    int *new_Pi = (int *) ps_malloc(new_nnz, sizeof(int));
-    int *new_Pp = (int *) ps_malloc(n_cols_new + 1, sizeof(int));
-    
-    if (!new_Px || !new_Pi || !new_Pp)
-    {
-        PS_FREE(new_Px);
-        PS_FREE(new_Pi);
-        PS_FREE(new_Pp);
-        return;
-    }
-    
-    /* Second pass: fill new P matrix */
-    new_Pp[0] = 0;
-    size_t idx_new = 0;
-    
-    for (size_t i = 0; i < n_cols_old; i++)
-    {
-        if (col_map[i] < 0) continue;  /* Skip deleted rows */
-        
-        int new_row = col_map[i];
-        int row_start = quad->Pp[i];
-        int row_end = quad->Pp[i + 1];
-        
-        for (int idx = row_start; idx < row_end; idx++)
-        {
-            int col = quad->Pi[idx];
-            if (col_map[col] >= 0)  /* Keep only if column is also active */
-            {
-                new_Px[idx_new] = quad->Px[idx];
-                new_Pi[idx_new] = col_map[col];  /* New column index */
-                idx_new++;
-            }
-        }
-        new_Pp[new_row + 1] = (int) idx_new;
-    }
-    
-    /* Free old arrays */
-    PS_FREE(quad->Px);
-    PS_FREE(quad->Pi);
-    PS_FREE(quad->Pp);
-    PS_FREE(quad->PTx);
-    PS_FREE(quad->PTi);
-    PS_FREE(quad->PTp);
-    
-    /* Assign new arrays */
-    quad->Px = new_Px;
-    quad->Pi = new_Pi;
-    quad->Pp = new_Pp;
-    quad->nnz = new_nnz;
-    
-    /* Rebuild transpose */
-    transpose_matrix(quad->Px, quad->Pi, quad->Pp, 
-                     &quad->PTx, &quad->PTi, &quad->PTp,
-                     n_cols_new, n_cols_new, new_nnz);
-}
 
 void problem_clean(Problem *prob, bool remove_all)
 {
@@ -360,7 +144,6 @@ void problem_clean(Problem *prob, bool remove_all)
     constraints_clean(prob->constraints, maps, remove_all);
     clean_state(prob->constraints->state, maps, n_rows_old, n_cols_old);
     objective_shrink(prob->obj->c, maps->cols, n_cols_old);
-    quad_term_shrink(prob->obj->quad, maps->cols, n_cols_old);
     quad_term_qr_shrink(prob->obj->quad_qr, maps->cols, n_cols_old);
 }
 

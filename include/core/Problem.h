@@ -21,24 +21,8 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include "PSQP_status.h"
 struct Constraints;
-
-/* Quadratic term P in the objective: (1/2) x^T P x
- * P is stored in CSR format (same as constraint matrix A)
- * Only the upper triangular part is stored for symmetric P */
-typedef struct
-{
-    double *Px;     /* values of P matrix */
-    int *Pi;        /* column indices */
-    int *Pp;        /* row pointers */
-    size_t nnz;     /* number of non-zeros in P */
-    bool has_quad;  /* true if P is non-empty */
-    
-    /* P transpose (CSC format of P) for efficient column access */
-    double *PTx;    /* values of P transpose */
-    int *PTi;       /* row indices of P transpose (column indices of P) */
-    int *PTp;       /* column pointers of P transpose */
-} QuadTerm;
 
 /* ============================================================================
  * QuadTermQR: P = Q + R*R^T decomposition
@@ -78,8 +62,7 @@ typedef struct Objective
 {
     double *c;
     double offset;
-    QuadTerm *quad;     /* quadratic term P, NULL for LP or when using QR */
-    QuadTermQR *quad_qr; /* quadratic term in QR format (P = Q + R*R^T), NULL for LP or when using P */
+    QuadTermQR *quad_qr; /* quadratic term in QR format (P = Q + R*R^T), NULL for LP */
 } Objective;
 
 typedef struct Problem
@@ -98,12 +81,7 @@ void free_problem(Problem *problem);
    account. */
 void problem_clean(Problem *problem, bool remove_all);
 
-/* Constructor and destructor for quadratic term */
-QuadTerm *quad_term_new(const double *Px, const int *Pi, const int *Pp, size_t nnz, size_t n);
-void free_quad_term(QuadTerm *quad);
-
 /* Constructor and destructor */
-Objective *objective_new(double *c, QuadTerm *quad);
 Objective *objective_new_qr(double *c, QuadTermQR *quad_qr);
 void free_objective(Objective *obj);
 
@@ -146,5 +124,75 @@ void quad_term_qr_shrink(QuadTermQR *quad_qr, int *col_map, size_t n_cols_old);
 
 /* Check if variable has quadratic terms in R */
 bool has_r_terms(const QuadTermQR *quad_qr, int col);
+
+/* Check if variable k has any quadratic terms in QR decomposition (Q or R matrix).
+ * Returns true if column k has non-zero entries in Q matrix or R matrix.
+ */
+bool has_quadratic_terms_qr(const QuadTermQR *quad_qr, int k);
+
+/* Check if variable k has ONLY diagonal entry in Q (no Q off-diagonal, no R entries).
+ * This is useful for safe variable substitution in Doubleton Equality:
+ * - Q[k][k] > 0 (diagonal entry exists)
+ * - No other Q[k][j] or Q[j][k] entries (j != k)
+ * - No R[:,k] entries (column k of R is empty)
+ * 
+ * Returns true if variable is "pure Q diagonal" and can be safely substituted
+ * without creating cross-terms in the objective.
+ */
+bool has_only_q_diag(const QuadTermQR *quad_qr, int k);
+
+/* Compute bounds on (P·x)_k for dual fix in QP.
+ * Returns true if bounds can be computed, false if infinite bounds make it impossible.
+ */
+/* Compute bounds on (P·x)_k for dual fix in QP.
+ * Returns true if bounds can be computed, false if infinite bounds make it impossible.
+ */
+struct Bound;  /* Forward declaration */
+bool compute_Px_bounds(const QuadTermQR *qr, int k,
+                       const struct Bound *bounds, size_t n_cols,
+                       double *min_Px, double *max_Px);
+
+/* Clean small entries (noise) from R matrix using a threshold.
+ * Entries with |value| < tol are treated as zeros and removed.
+ * Typical tolerance: 1e-13 to 1e-15
+ */
+void clean_zero_entries_qr(QuadTermQR *qr, double tol);
+
+/* Extract rows of R that have only a single non-zero entry and move them to Q diagonal.
+ * This reduces the rank of R by extracting "diagonal-like" terms.
+ * Returns number of rows extracted.
+ */
+size_t extract_single_nnz_rows_from_R(QuadTermQR *qr);
+
+/* Detect and merge collinear rows in R matrix.
+ * 
+ * If rows r_i and r_j are collinear (r_j = alpha * r_i), we can merge them
+ * to reduce the rank of R. The merged row becomes:
+ *   r_new = sqrt(alpha^2 + 1) * r_i
+ * 
+ * Returns number of rows merged.
+ */
+size_t merge_collinear_rows_in_R(QuadTermQR *qr, double tol);
+
+/* Forward declaration for Problem struct */
+struct Problem;
+
+/* Detect and fix isolated quadratic variables to their optimal values.
+ * 
+ * A variable is isolated if:
+ * 1. It has a diagonal entry in Q (Q[i][i] > 0)
+ * 2. It has no entries in R
+ * 3. It has no entries in constraint matrix A
+ * 
+ * For such variable x_i, the problem is:
+ *   min 0.5 * Q[i][i] * x_i^2 + c_i * x_i
+ *   s.t. lb_i <= x_i <= ub_i
+ * 
+ * Optimal solution: x_i* = -c_i / Q[i][i] (clipped to bounds)
+ * 
+ * Returns REDUCED if any variables were fixed, UNCHANGED otherwise.
+ * May return INFEASIBLE if the computed optimal value conflicts with bounds.
+ */
+PresolveStatus fix_isolated_quadratic_vars_qp(struct Problem *prob);
 
 #endif // CORE_PROBLEM_H

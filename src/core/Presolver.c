@@ -300,7 +300,7 @@ Presolver *new_presolver(const double *Ax, const int *Ai, const int *Ap, size_t 
     //             Allocate the actual presolver
     // ---------------------------------------------------------------------------
     presolver = (Presolver *) ps_malloc(1, sizeof(Presolver));
-    obj = objective_new(c_copy, NULL);  /* LP: no quadratic term */
+    obj = objective_new_qr(c_copy, NULL);  /* LP: no quadratic term */
     if (!presolver || !obj) goto cleanup;
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
@@ -362,7 +362,7 @@ Presolver *new_qp_presolver(const double *Ax, const int *Ai, const int *Ap, size
     ColTag *col_tags = NULL;
     Bound *bounds = NULL;
     Work *work = NULL;
-    QuadTerm *quad = NULL;
+    /* QuadTermQR *quad = NULL; */
 
     //  ---------------------------------------------------------------------------
     //   Copy data and allocate memory. For an exact specification of the
@@ -393,11 +393,8 @@ Presolver *new_qp_presolver(const double *Ax, const int *Ai, const int *Ap, size
     // ---------------------------------------------------------------------------
     //  Create quadratic term if provided
     // ---------------------------------------------------------------------------
-    if (Px != NULL && Pnnz > 0)
-    {
-        quad = quad_term_new(Px, Pi, Pp, Pnnz, n_cols);
-        if (!quad) goto cleanup;
-    }
+    /* Old P matrix format no longer supported in LP presolver. Use new_qp_presolver_qr for QP. */
+    (void)Px; (void)Pi; (void)Pp; (void)Pnnz;
 
     // ---------------------------------------------------------------------------
     //  Build bounds, row tags, A and AT. We first build A, then in parallel
@@ -446,7 +443,7 @@ Presolver *new_qp_presolver(const double *Ax, const int *Ai, const int *Ap, size
     //             Allocate the actual presolver
     // ---------------------------------------------------------------------------
     presolver = (Presolver *) ps_malloc(1, sizeof(Presolver));
-    obj = objective_new(c_copy, quad);  /* QP: with quadratic term */
+    obj = objective_new_qr(c_copy, NULL);  /* LP: no quadratic term */
     if (!presolver || !obj) goto cleanup;
     presolver->stgs = stgs;
     presolver->prob = new_problem(constraints, obj);
@@ -483,7 +480,7 @@ cleanup:
         col_sizes, row_tags, locks,    activities, data,   constraints,
         presolver, obj,      col_tags, bounds,     work};
     presolver_clean_up(scope);
-    free_quad_term(quad);
+    free_quad_term_qr(NULL);
 }
     return NULL;
 }
@@ -739,38 +736,18 @@ void populate_presolved_problem(Presolver *presolver)
         reduced_prob->Ap[i] = A->p[i].start;
     }
 
-    // populate quadratic term if present (P matrix format)
-    if (obj->quad != NULL && obj->quad->has_quad)
-    {
-        reduced_prob->has_quadratic = true;
-        reduced_prob->Pnnz = obj->quad->nnz;
-        reduced_prob->Px = obj->quad->Px;
-        reduced_prob->Pi = obj->quad->Pi;
-        reduced_prob->Pp = obj->quad->Pp;
-        /* Move ownership from quad to reduced_prob to prevent double-free */
-        obj->quad->Px = NULL;
-        obj->quad->Pi = NULL;
-        obj->quad->Pp = NULL;
-        obj->quad->nnz = 0;
-        obj->quad->has_quad = false;
-        
-        /* No QR format */
-        reduced_prob->has_quad_qr = false;
-        reduced_prob->Qx = NULL; reduced_prob->Qi = NULL; reduced_prob->Qp = NULL;
-        reduced_prob->Rx = NULL; reduced_prob->Ri = NULL; reduced_prob->Rp = NULL;
-        reduced_prob->Qnnz = 0; reduced_prob->Rnnz = 0; reduced_prob->k = 0;
-    }
     // populate quadratic term if present (QR format: P = Q + R*R^T)
-    else if (obj->quad_qr != NULL && obj->quad_qr->has_quad)
+    /* Old P matrix format removed - only QR format supported now */
+    if (obj->quad_qr != NULL && obj->quad_qr->has_quad)
     {
-        reduced_prob->has_quadratic = false;  /* P is not stored explicitly */
-        reduced_prob->Pnnz = 0;
-        reduced_prob->Px = NULL;
-        reduced_prob->Pi = NULL;
-        reduced_prob->Pp = NULL;
+        /* No quadratic term */  /* P is not stored explicitly */
+        reduced_prob->Qnnz = 0;
+        reduced_prob->Qx = NULL;
+        reduced_prob->Qi = NULL;
+        reduced_prob->Qp = NULL;
         
         /* QR format */
-        reduced_prob->has_quad_qr = true;
+        /* QR format present */
         reduced_prob->Qnnz = obj->quad_qr->Qnnz;
         reduced_prob->Rnnz = obj->quad_qr->Rnnz;
         reduced_prob->k = obj->quad_qr->k;
@@ -798,13 +775,13 @@ void populate_presolved_problem(Presolver *presolver)
     }
     else
     {
-        reduced_prob->has_quadratic = false;
-        reduced_prob->Pnnz = 0;
-        reduced_prob->Px = NULL;
-        reduced_prob->Pi = NULL;
-        reduced_prob->Pp = NULL;
+        /* No quadratic term */
+        reduced_prob->Qnnz = 0;
+        reduced_prob->Qx = NULL;
+        reduced_prob->Qi = NULL;
+        reduced_prob->Qp = NULL;
         
-        reduced_prob->has_quad_qr = false;
+        /* Initialize QR format fields */
         reduced_prob->Qx = NULL; reduced_prob->Qi = NULL; reduced_prob->Qp = NULL;
         reduced_prob->Rx = NULL; reduced_prob->Ri = NULL; reduced_prob->Rp = NULL;
         reduced_prob->Qnnz = 0; reduced_prob->Rnnz = 0; reduced_prob->k = 0;
@@ -1002,23 +979,13 @@ void free_presolver(Presolver *presolver)
         PS_FREE(presolver->reduced_prob->Ap);
         PS_FREE(presolver->reduced_prob->lbs);
         PS_FREE(presolver->reduced_prob->ubs);
-        /* Free quadratic term if present (P matrix format) */
-        if (presolver->reduced_prob->has_quadratic)
-        {
-            PS_FREE(presolver->reduced_prob->Px);
-            PS_FREE(presolver->reduced_prob->Pi);
-            PS_FREE(presolver->reduced_prob->Pp);
-        }
         /* Free quadratic term if present (QR format) */
-        if (presolver->reduced_prob->has_quad_qr)
-        {
-            PS_FREE(presolver->reduced_prob->Qx);
-            PS_FREE(presolver->reduced_prob->Qi);
-            PS_FREE(presolver->reduced_prob->Qp);
-            PS_FREE(presolver->reduced_prob->Rx);
-            PS_FREE(presolver->reduced_prob->Ri);
-            PS_FREE(presolver->reduced_prob->Rp);
-        }
+        PS_FREE(presolver->reduced_prob->Qx);
+        PS_FREE(presolver->reduced_prob->Qi);
+        PS_FREE(presolver->reduced_prob->Qp);
+        PS_FREE(presolver->reduced_prob->Rx);
+        PS_FREE(presolver->reduced_prob->Ri);
+        PS_FREE(presolver->reduced_prob->Rp);
         PS_FREE(presolver->reduced_prob);
     }
 

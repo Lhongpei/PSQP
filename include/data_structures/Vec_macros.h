@@ -95,6 +95,7 @@
     static inline void TYPE_NAME##Vec_append_array(TYPE_NAME##Vec *vec,             \
                                                    const TYPE *values, size_t n)    \
     {                                                                               \
+        if (n == 0 || values == NULL) return;  /* Handle empty array safely */     \
         if (vec->len + n > vec->capacity)                                           \
         {                                                                           \
             size_t new_capacity = vec->capacity > 0 ? vec->capacity : 1;            \

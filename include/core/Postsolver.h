@@ -52,6 +52,7 @@ enum ReductionTypes
     
     // QP support
     FIXED_COL_QP = 1 << 11,  /* Fixed column with quadratic term */
+    SUB_COL_QP = 1 << 12,    /* Substituted column with quadratic term (DtonsEq with QP) */
 };
 
 typedef struct PostsolveInfo
@@ -103,6 +104,14 @@ void save_retrieval_fixed_col_qp(PostsolveInfo *info, int col, double val, doubl
                                  const double *vals, const int *rows, size_t len,
                                  const double *p_vals, const int *p_cols, size_t p_len);
 
+/* QP version for QR format (P = Q + R*R^T): saves A matrix row and QR info
+ * q_vals, q_cols, q_len: Q matrix row k (upper triangular, includes diagonal)
+ * rt_vals, rt_cols, rt_len: R^T row k (column k of R) for R*R^T contribution */
+void save_retrieval_fixed_col_qp_qr(PostsolveInfo *info, int col, double val, double ck,
+                                    const double *vals, const int *rows, size_t len,
+                                    const double *q_vals, const int *q_cols, size_t q_len,
+                                    const double *rt_vals, const int *rt_cols, size_t rt_len);
+
 /* Saves the information required to retrieve variable xk that was fixed
    to either +INF or -INF.
     * info->indices stores [sign(xk), k, row_len1, cols1, row_len2,
@@ -124,6 +133,17 @@ void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,
  */
 void save_retrieval_sub_col(PostsolveInfo *info, int col, int *cols, double *coeffs,
                             size_t len, double rhs, int i, double ck);
+
+/* QP version for DtonsEq with pure diagonal QP variables
+ * For substituted variable xk with Q[k][k] = q_kk:
+ *   x_k = (rhs - sum_{j != k} aij*xj) / aik
+ *   z_k = ck + q_kk*xk - aik*yi
+ * Stores: indices = [k, cols..., i]
+ *         vals = [rhs, coeffs..., ck, q_kk]
+ * Uses SUB_COL_QP type.
+ */
+void save_retrieval_sub_col_qp(PostsolveInfo *info, int col, int *cols, double *coeffs,
+                               size_t len, double rhs, int i, double ck, double q_kk);
 
 /* This function saves the information required to retrieve variable xj
    and xk that were replaced with a new variable x_new = xj + ratio * xk

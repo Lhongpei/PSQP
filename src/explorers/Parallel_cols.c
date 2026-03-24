@@ -155,6 +155,15 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
                     }
                 }
 
+                /* For QR decomposition: skip if the variable to be eliminated (k)
+                 * has quadratic terms (non-zero column in Q or R matrix).
+                 * Linear variables can still be safely eliminated.
+                 */
+                if (has_quadratic_terms_qr(prob->obj->quad_qr, k))
+                {
+                    continue;
+                }
+
                 // ---------------------------------------------------------------------
                 //                  mark col k as substituted
                 // ---------------------------------------------------------------------

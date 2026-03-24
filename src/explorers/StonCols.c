@@ -30,39 +30,9 @@
 #include "RowColViews.h"
 #include "State.h"
 
-/* Helper function to check if variable k has any quadratic terms associated with it.
- * For QP problems, if a variable has P_{kk} != 0 or any P_{kj} != 0 or P_{ik} != 0,
- * we should not perform substitution because it would require complex P matrix updates
- * to maintain mathematical equivalence.
- */
-static bool has_quadratic_terms(const QuadTerm *quad, int k)
-{
-    if (quad == NULL || !quad->has_quad)
-    {
-        return false;
-    }
-    
-    /* Check row k of P (P_{kk} and P_{kj} for j > k) */
-    int row_start = quad->Pp[k];
-    int row_end = quad->Pp[k + 1];
-    if (row_end > row_start)
-    {
-        return true;  /* Row k has entries */
-    }
-    
-    /* Check column k of P (P_{ik} for i < k) using PT */
-    if (quad->PTp != NULL)
-    {
-        int col_start = quad->PTp[k];
-        int col_end = quad->PTp[k + 1];
-        if (col_end > col_start)
-        {
-            return true;  /* Column k has entries */
-        }
-    }
-    
-    return false;
-}
+/* Forward declarations - these are defined in Problem_QR.c */
+extern bool has_r_terms(const QuadTermQR *quad_qr, int col);
+extern bool has_quadratic_terms_qr(const QuadTermQR *quad_qr, int k);
 
 /* Helper for handling the case where a column-singleton variable in an
    equality row is only implied free from above. */
@@ -270,7 +240,7 @@ static PresolveStatus process_colston_eq(RowView *row, ColView *col, Objective *
      * complex updates to the P matrix to maintain equivalence.
      * Instead, we skip this reduction.
      */
-    if (obj->quad != NULL && obj->quad->has_quad && has_quadratic_terms(obj->quad, col->k))
+    if (has_quadratic_terms_qr(obj->quad_qr, col->k))
     {
         return UNCHANGED;
     }
@@ -476,7 +446,7 @@ process_colston_ineq(RowView *row, ColView *col, Objective *obj, double Aik,
         /* For QP problems, check if variable k has quadratic terms.
          * If so, we cannot perform substitution (would need complex P matrix updates).
          */
-        if (obj->quad != NULL && obj->quad->has_quad && has_quadratic_terms(obj->quad, col->k))
+        if (has_quadratic_terms_qr(obj->quad_qr, col->k))
         {
             return UNCHANGED;
         }

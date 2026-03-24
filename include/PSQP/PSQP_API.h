@@ -82,19 +82,10 @@ extern "C"
            relative optimality gap of the reduced problem.) */
         double obj_offset;
 
-        /* Quadratic term P for QP problems (optional, NULL for LP)
-         * P is stored in CSR format, upper triangular part only
-         * Objective: (1/2) x^T P x + c^T x + offset */
-        double *Px;
-        int *Pi;
-        int *Pp;
-        size_t Pnnz;
-        bool has_quadratic;
-
         /* Quadratic term in QR decomposition format: P = Q + R*R^T
-         * These fields are populated when using new_qp_presolver_qr()
-         * Q: sparse symmetric matrix (CSR upper triangular)
-         * R: sparse n x k matrix (CSR format) */
+         * Q: sparse symmetric matrix (CSR upper triangular), NULL if empty
+         * R: sparse n x k matrix (CSR format), NULL if empty
+         * For pure LP: Qx=Qp=Rx=Rp=NULL, Qnnz=Rnnz=k=0 */
         double *Qx;     /* Q matrix values */
         int *Qi;        /* Q matrix column indices */
         int *Qp;        /* Q matrix row pointers */
@@ -105,7 +96,6 @@ extern "C"
         int *Rp;        /* R matrix row pointers */
         size_t Rnnz;    /* R matrix non-zeros */
         size_t k;       /* number of columns in R (R is n x k) */
-        bool has_quad_qr; /* true if Q and R are stored separately */
     } PresolvedProblem;
 
     /* struct corresponding to the presolver:

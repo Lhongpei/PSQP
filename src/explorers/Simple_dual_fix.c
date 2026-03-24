@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+#include <math.h>  /* For isnan, NAN */
+
 #include "Simple_dual_fix.h"
 #include "Bounds.h"
 #include "Constraints.h"
@@ -108,6 +110,57 @@ static inline PresolveStatus _simple_dual_fix(Constraints *constraints, double c
     return UNCHANGED;
 }
 
+/* Forward declarations - these are in Problem.h */
+extern bool has_quadratic_terms_qr(const QuadTermQR *quad_qr, int k);
+extern bool compute_Px_bounds(const QuadTermQR *qr, int k, 
+                               const Bound *bounds, size_t n_cols,
+                               double *min_Px, double *max_Px);
+
+/* Helper function for QP dual fix with quadratic terms.
+ * Returns the effective coefficient for dual fix decision.
+ * For LP: returns c_k
+ * For QP with known (P·x)_k bounds: returns c_k + adjusted_Px
+ * For QP with unbounded (P·x)_k: returns NaN (cannot determine)
+ */
+static inline double get_effective_coeff_for_dual_fix(const QuadTermQR *qr, int k,
+                                                       double c_k, 
+                                                       const Bound *bounds, 
+                                                       size_t n_cols,
+                                                       bool *can_fix_to_lb,
+                                                       bool *can_fix_to_ub)
+{
+    *can_fix_to_lb = false;
+    *can_fix_to_ub = false;
+    
+    if (qr == NULL || !qr->has_quad || !has_quadratic_terms_qr(qr, k))
+    {
+        /* Linear variable: use standard LP dual fix */
+        *can_fix_to_lb = (c_k > 0);
+        *can_fix_to_ub = (c_k < 0);
+        return c_k;
+    }
+    
+    /* QP variable with quadratic terms: compute bounds on (P·x)_k */
+    double min_Px, max_Px;
+    if (!compute_Px_bounds(qr, k, bounds, n_cols, &min_Px, &max_Px))
+    {
+        /* Cannot determine bounds (infinite bounds in involved variables) */
+        return NAN;
+    }
+    
+    /* For dual fix to lb: need c_k + (P·x)_k > 0 for all feasible x
+     * The minimum of c_k + (P·x)_k is c_k + min_Px
+     */
+    *can_fix_to_lb = (c_k + min_Px > 0);
+    
+    /* For dual fix to ub: need c_k + (P·x)_k < 0 for all feasible x
+     * The maximum of c_k + (P·x)_k is c_k + max_Px
+     */
+    *can_fix_to_ub = (c_k + max_Px < 0);
+    
+    return c_k;  /* Return original c_k for additional checks */
+}
+
 PresolveStatus simple_dual_fix(Problem *prob)
 {
     assert(prob->constraints->state->empty_cols->len == 0);
@@ -133,11 +186,88 @@ PresolveStatus simple_dual_fix(Problem *prob)
             continue;
         }
 
-        // if simple_dual_fix returns UNBNDORINFEAS it will be propagated
-        // to run_fast_presolvers where it is detected
-        status |= _simple_dual_fix(constraints, c[k], bounds[k].lb, bounds[k].ub,
-                                   locks[k], col_tags[k], (int) k, cols_to_inf,
-                                   prob->obj);
+        /* For QP: compute effective coefficient including quadratic term contributions */
+        bool can_fix_to_lb, can_fix_to_ub;
+        double effective_c = get_effective_coeff_for_dual_fix(
+            prob->obj->quad_qr, (int) k, c[k], bounds, n_cols, 
+            &can_fix_to_lb, &can_fix_to_ub);
+        
+        /* If we cannot determine bounds (NaN), skip this variable */
+        if (isnan(effective_c))
+        {
+            continue;
+        }
+        
+        /* For LP or QP with determined bounds: use the can_fix_to_lb/ub flags */
+        
+        // --------------------------------------------------
+        // see if we can fix the variable to its lower bound
+        // --------------------------------------------------
+        if (can_fix_to_lb && locks[k].down == 0)
+        {
+            if (HAS_TAG(col_tags[k], C_TAG_LB_INF))
+            {
+                return UNBNDORINFEAS;
+            }
+
+            assert(!IS_ABS_INF(bounds[k].lb));
+            fix_col(constraints, (int) k, bounds[k].lb, c[k], prob->obj);
+            continue;  /* Handled, move to next variable */
+        }
+
+        // ---------------------------------------------------
+        // see if we can fix the variable to its upper bound
+        // ---------------------------------------------------
+        if (can_fix_to_ub && locks[k].up == 0)
+        {
+            if (HAS_TAG(col_tags[k], C_TAG_UB_INF))
+            {
+                return UNBNDORINFEAS;
+            }
+
+            assert(!IS_ABS_INF(bounds[k].ub));
+            fix_col(constraints, (int) k, bounds[k].ub, c[k], prob->obj);
+            continue;  /* Handled, move to next variable */
+        }
+
+        // ------------------------------------------------------------------------
+        // If the objective coefficient is 0 and there are no downlocks,
+        // then the variable may be set to -infinity if it is unbounded from below,
+        // making the constraints it appears in redundant. If the variable is
+        // bounded from below we can set the variable to any value. Our design
+        // choice is to set the variable to its lower bound.
+        // A similar comment applies to the case when there are no uplocks.
+        // ------------------------------------------------------------------------
+        if (effective_c == 0)
+        {
+            if (locks[k].down == 0)
+            {
+                if (HAS_TAG(col_tags[k], C_TAG_LB_INF))
+                {
+                    iVec_append(cols_to_inf, -(int) k);
+                }
+                else
+                {
+                    assert(!IS_ABS_INF(bounds[k].lb));
+                    fix_col(constraints, (int) k, bounds[k].lb, c[k], prob->obj);
+                }
+                continue;
+            }
+
+            if (locks[k].up == 0)
+            {
+                if (HAS_TAG(col_tags[k], C_TAG_UB_INF))
+                {
+                    iVec_append(cols_to_inf, (int) k);
+                }
+                else
+                {
+                    assert(!IS_ABS_INF(bounds[k].ub));
+                    fix_col(constraints, (int) k, bounds[k].ub, c[k], prob->obj);
+                }
+                continue;
+            }
+        }
     }
 
     // now fix the columns that can be fixed to inf
