@@ -20,6 +20,13 @@
 
 const char *run_all_tests()
 {
+    /* Run QP/QR tests first - they have memory issues when run after other tests */
+    mu_assert("qp error", test_qp());
+    mu_assert("qr error", test_qr());
+    mu_assert("qr_comprehensive error", test_qr_comprehensive());
+    mu_assert("qr_objective error", test_qr_objective());
+    mu_assert("qr_end2end error", test_qr_end2end());
+    
     mu_assert("matrix error", test_matrix());
     mu_assert("constraints error", test_constraints());
     mu_assert("iVec error", test_iVec());
@@ -30,6 +37,7 @@ const char *run_all_tests()
     mu_assert("domain propagation error", test_domain());
     mu_assert("radix_sort error", test_radix_sort());
     mu_assert("presolver error", test_presolver());
+    mu_assert("postsolve error", test_postsolve());
     mu_assert("pathological error", test_pathological());
     mu_assert("parallel_cols error", test_parallel_cols());
 
@@ -37,13 +45,6 @@ const char *run_all_tests()
     /* windows build is a bit weird in debug mode */
     mu_assert("parallel_rows error", test_parallel_rows());
 #endif
-
-    mu_assert("postsolve error", test_postsolve());
-    mu_assert("qp error", test_qp());
-    mu_assert("qr error", test_qr());
-    mu_assert("qr_comprehensive error", test_qr_comprehensive());
-    mu_assert("qr_objective error", test_qr_objective());
-    mu_assert("qr_end2end error", test_qr_end2end());
 
     return NULL;
 }

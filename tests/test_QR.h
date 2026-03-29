@@ -61,7 +61,7 @@ static char *test_qr_simple()
     mu_assert("QR presolve should work", status == REDUCED || status == UNCHANGED);
     
     if (reduced->n > 0) {
-        mu_assert("should have quadratic term", reduced->has_quadratic);
+        mu_assert("should have quadratic term", reduced->Qnnz > 0 || reduced->Rnnz > 0 || reduced->k > 0);
     }
     
     free_settings(stgs);

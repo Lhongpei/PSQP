@@ -398,7 +398,7 @@ void quad_term_qr_shrink(QuadTermQR *qr, int *col_map, size_t n_cols_old)
             
             int row_start = qr->Rp[i];
             int row_end = qr->Rp[i + 1];
-            new_Rnnz += (row_end - row_start);
+            new_Rnnz += (size_t)(row_end - row_start);
         }
         
         if (new_Rnnz == 0)
@@ -479,8 +479,8 @@ void clean_zero_entries_qr(QuadTermQR *qr, double tol)
     if (!qr || !qr->Rx || qr->Rnnz == 0) return;
     if (tol <= 0) tol = 1e-13;
     
-    int n = qr->n;
-    int k = qr->k;
+    int n = (int)qr->n;
+    int k = (int)qr->k;
     
     /* First pass: count entries above tolerance */
     size_t new_nnz = 0;
@@ -495,7 +495,7 @@ void clean_zero_entries_qr(QuadTermQR *qr, double tol)
     /* Allocate new arrays */
     double *new_Rx = (double *)ps_malloc(new_nnz, sizeof(double));
     int *new_Ri = (int *)ps_malloc(new_nnz, sizeof(int));
-    int *new_Rp = (int *)ps_malloc(k + 1, sizeof(int));
+    int *new_Rp = (int *)ps_malloc((size_t)k + 1, sizeof(int));
     
     if (!new_Rx || !new_Ri || !new_Rp)
     {
@@ -543,7 +543,7 @@ void clean_zero_entries_qr(QuadTermQR *qr, double tol)
     
     /* Rebuild transpose */
     if (new_nnz > 0)
-        transpose_csr(qr->Rx, qr->Ri, qr->Rp, &qr->RTx, &qr->RTi, &qr->RTp, k, n, new_nnz);
+        transpose_csr(qr->Rx, qr->Ri, qr->Rp, &qr->RTx, &qr->RTi, &qr->RTp, (size_t)k, (size_t)n, new_nnz);
 }
 
 /* Extract rows of R that have only a single non-zero entry and move them to Q diagonal.
@@ -554,8 +554,8 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
 {
     if (!qr || !qr->Rx || qr->Rnnz == 0 || qr->k <= 0) return 0;
     
-    int n = qr->n;
-    int k = qr->k;
+    int n = (int)qr->n;
+    int k = (int)qr->k;
     
     /* Count rows with single nnz */
     int single_nnz_rows = 0;
@@ -570,7 +570,7 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
     if (single_nnz_rows == 0) return 0;
     
     /* Build row map: which rows to keep in R */
-    int *row_keep = (int *)ps_malloc(k, sizeof(int));
+    int *row_keep = (int *)ps_malloc((size_t)k, sizeof(int));
     if (!row_keep) return 0;
     
     int new_row_idx = 0;
@@ -590,8 +590,8 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
      * column already has a Q diagonal entry */
     /* extracted_col[i] = target column of i-th extracted row */
     /* extracted_val[i] = R value of i-th extracted row */
-    int *extracted_cols = (int *)ps_malloc(single_nnz_rows, sizeof(int));
-    double *extracted_vals = (double *)ps_malloc(single_nnz_rows, sizeof(double));
+    int *extracted_cols = (int *)ps_malloc((size_t)single_nnz_rows, sizeof(int));
+    double *extracted_vals = (double *)ps_malloc((size_t)single_nnz_rows, sizeof(double));
     if (!extracted_cols || !extracted_vals)
     {
         PS_FREE(row_keep);
@@ -614,7 +614,7 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
     
     /* Find existing Q diagonal entries and count merges */
     /* has_q_diag[col] = index into Q arrays if column col has a diagonal entry, -1 otherwise */
-    int *has_q_diag = (int *)ps_malloc(n, sizeof(int));
+    int *has_q_diag = (int *)ps_malloc((size_t)n, sizeof(int));
     if (!has_q_diag)
     {
         PS_FREE(row_keep);
@@ -652,12 +652,12 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
     }
     
     /* New Q size: existing + new entries - merges */
-    size_t new_Qnnz = qr->Qnnz + single_nnz_rows - merge_count;
+    size_t new_Qnnz = qr->Qnnz + (size_t)single_nnz_rows - (size_t)merge_count;
     
     /* Allocate new Q arrays */
     double *new_Qx = (double *)ps_malloc(new_Qnnz, sizeof(double));
     int *new_Qi = (int *)ps_malloc(new_Qnnz, sizeof(int));
-    int *new_Qp = (int *)ps_malloc(n + 1, sizeof(int));
+    int *new_Qp = (int *)ps_malloc((size_t)n + 1, sizeof(int));
     
     if (!new_Qx || !new_Qi || !new_Qp)
     {
@@ -676,7 +676,7 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
     {
         memcpy(new_Qx, qr->Qx, qr->Qnnz * sizeof(double));
         memcpy(new_Qi, qr->Qi, qr->Qnnz * sizeof(int));
-        memcpy(new_Qp, qr->Qp, (n + 1) * sizeof(int));
+        memcpy(new_Qp, qr->Qp, ((size_t)n + 1) * sizeof(int));
         
         /* Add val^2 to existing diagonal entries */
         for (int i = 0; i < single_nnz_rows; i++)
@@ -692,7 +692,7 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
     else
     {
         /* No existing Q - initialize empty Qp */
-        memset(new_Qp, 0, (n + 1) * sizeof(int));
+        memset(new_Qp, 0, ((size_t)n + 1) * sizeof(int));
     }
     
     /* Add new Q diagonal entries for columns that didn't have one */
@@ -729,7 +729,7 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
     }
     
     /* Rebuild Qp */
-    int *row_counts = (int *)ps_calloc(n, sizeof(int));
+    int *row_counts = (int *)ps_calloc((size_t)n, sizeof(int));
     for (size_t i = 0; i < new_Qnnz; i++)
         row_counts[new_Qi[i]]++;
     
@@ -778,13 +778,13 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
             {
                 int row_start = qr->Rp[row];
                 int row_end = qr->Rp[row + 1];
-                new_Rnnz += (row_end - row_start);
+                new_Rnnz += (size_t)(row_end - row_start);
             }
         }
         
         double *new_Rx = (double *)ps_malloc(new_Rnnz, sizeof(double));
         int *new_Ri = (int *)ps_malloc(new_Rnnz, sizeof(int));
-        int *new_Rp = (int *)ps_malloc(k_new + 1, sizeof(int));
+        int *new_Rp = (int *)ps_malloc((size_t)k_new + 1, sizeof(int));
         
         if (!new_Rx || !new_Ri || !new_Rp)
         {
@@ -824,14 +824,14 @@ size_t extract_single_nnz_rows_from_R(QuadTermQR *qr)
         qr->Ri = new_Ri;
         qr->Rp = new_Rp;
         qr->Rnnz = new_Rnnz;
-        qr->k = k_new;
+        qr->k = (size_t)k_new;
         qr->RTx = NULL;
         qr->RTi = NULL;
         qr->RTp = NULL;
         
         /* Rebuild transpose */
         if (new_Rnnz > 0)
-            transpose_csr(qr->Rx, qr->Ri, qr->Rp, &qr->RTx, &qr->RTi, &qr->RTp, k_new, n, new_Rnnz);
+            transpose_csr(qr->Rx, qr->Ri, qr->Rp, &qr->RTx, &qr->RTi, &qr->RTp, (size_t)k_new, (size_t)n, new_Rnnz);
     }
     
     PS_FREE(row_keep);
@@ -907,8 +907,8 @@ size_t merge_collinear_rows_in_R(QuadTermQR *qr, double tol)
 {
     if (!qr || !qr->Rx || qr->Rnnz == 0 || qr->k <= 1) return 0;
     
-    int n = qr->n;
-    int k = qr->k;
+    int n = (int)qr->n;
+    int k = (int)qr->k;
     
     /* Build hash buckets */
     typedef struct HashEntry {
@@ -916,9 +916,9 @@ size_t merge_collinear_rows_in_R(QuadTermQR *qr, double tol)
         struct HashEntry *next;
     } HashEntry;
     
-    int num_buckets = k * 2 + 1;
-    HashEntry **buckets = (HashEntry **)ps_calloc(num_buckets, sizeof(HashEntry *));
-    HashEntry *entries = (HashEntry *)ps_malloc(k, sizeof(HashEntry));
+    uint64_t num_buckets = (uint64_t)k * 2 + 1;
+    HashEntry **buckets = (HashEntry **)ps_calloc((size_t)num_buckets, sizeof(HashEntry *));
+    HashEntry *entries = (HashEntry *)ps_malloc((size_t)k, sizeof(HashEntry));
     
     if (!buckets || !entries)
     {
@@ -954,8 +954,8 @@ size_t merge_collinear_rows_in_R(QuadTermQR *qr, double tol)
     }
     
     /* Find collinear pairs */
-    int *merge_with = (int *)ps_malloc(k, sizeof(int));
-    double *alpha_vals = (double *)ps_malloc(k, sizeof(double));
+    int *merge_with = (int *)ps_malloc((size_t)k, sizeof(int));
+    double *alpha_vals = (double *)ps_malloc((size_t)k, sizeof(double));
     
     if (!merge_with || !alpha_vals)
     {
@@ -1020,7 +1020,7 @@ size_t merge_collinear_rows_in_R(QuadTermQR *qr, double tol)
     
     /* Count merged rows and survivors */
     int merged = 0;
-    int *new_row_idx = (int *)ps_malloc(k, sizeof(int));
+    int *new_row_idx = (int *)ps_malloc((size_t)k, sizeof(int));
     int survivor_idx = 0;
     
     for (int i = 0; i < k; i++)
@@ -1048,7 +1048,7 @@ size_t merge_collinear_rows_in_R(QuadTermQR *qr, double tol)
     
     /* First pass: scale surviving rows and count new nnz */
     /* For row i that survives and has merged rows: new_R_i = sqrt(1 + sum alpha^2) * R_i */
-    double *row_scales = (double *)ps_malloc(k, sizeof(double));
+    double *row_scales = (double *)ps_malloc((size_t)k, sizeof(double));
     for (int i = 0; i < k; i++)
         row_scales[i] = 1.0;
     
@@ -1079,14 +1079,14 @@ size_t merge_collinear_rows_in_R(QuadTermQR *qr, double tol)
         {
             int row_start = qr->Rp[row];
             int row_end = qr->Rp[row + 1];
-            new_Rnnz += (row_end - row_start);
+            new_Rnnz += (size_t)(row_end - row_start);
         }
     }
     
     /* Allocate new R arrays */
     double *new_Rx = (double *)ps_malloc(new_Rnnz, sizeof(double));
     int *new_Ri = (int *)ps_malloc(new_Rnnz, sizeof(int));
-    int *new_Rp = (int *)ps_malloc(k_new + 1, sizeof(int));
+    int *new_Rp = (int *)ps_malloc((size_t)k_new + 1, sizeof(int));
     
     if (!new_Rx || !new_Ri || !new_Rp)
     {
@@ -1135,14 +1135,14 @@ size_t merge_collinear_rows_in_R(QuadTermQR *qr, double tol)
     qr->Ri = new_Ri;
     qr->Rp = new_Rp;
     qr->Rnnz = new_Rnnz;
-    qr->k = k_new;
+    qr->k = (size_t)k_new;
     qr->RTx = NULL;
     qr->RTi = NULL;
     qr->RTp = NULL;
     
     /* Rebuild transpose */
     if (new_Rnnz > 0)
-        transpose_csr(qr->Rx, qr->Ri, qr->Rp, &qr->RTx, &qr->RTi, &qr->RTp, k_new, n, new_Rnnz);
+        transpose_csr(qr->Rx, qr->Ri, qr->Rp, &qr->RTx, &qr->RTi, &qr->RTp, (size_t)k_new, (size_t)n, new_Rnnz);
     
     /* Cleanup */
     PS_FREE(buckets);
@@ -1245,139 +1245,80 @@ bool has_only_q_diag(const QuadTermQR *quad_qr, int k)
     return true;
 }
 
-/* Compute bounds for P*x using QR representation */
+/* Compute bounds for (P*x)_k using QR representation (only for row k) */
 bool compute_Px_bounds(const QuadTermQR *qr, int k,
                        const Bound *bounds, size_t n_cols,
                        double *min_Px, double *max_Px)
 {
-    (void)k;  /* Unused, kept for API compatibility */
     if (!qr || !qr->has_quad || !bounds || !min_Px || !max_Px)
         return false;
     
-    int n = (int)n_cols;
-    if (n != qr->n) return false;
-    
-    /* Extract lb/ub arrays from bounds */
-    double *x_lb = (double *)ps_malloc(n, sizeof(double));
-    double *x_ub = (double *)ps_malloc(n, sizeof(double));
-    if (!x_lb || !x_ub)
-    {
-        PS_FREE(x_lb);
-        PS_FREE(x_ub);
+    if (k < 0 || (size_t)k >= n_cols || n_cols != qr->n)
         return false;
-    }
     
-    for (int i = 0; i < n; i++)
-    {
-        x_lb[i] = bounds[i].lb;
-        x_ub[i] = bounds[i].ub;
-    }
+    /* Initialize output */
+    *min_Px = 0.0;
+    *max_Px = 0.0;
     
-    double *px_lb = min_Px;
-    double *px_ub = max_Px;
-    
-    /* Initialize bounds */
-    for (int i = 0; i < n; i++)
-    {
-        px_lb[i] = 0.0;
-        px_ub[i] = 0.0;
-    }
-    
-    /* Add Q contribution (diagonal) */
+    /* Add Q contribution for row k */
     if (qr->Qx != NULL && qr->Qp != NULL)
     {
-        for (int row = 0; row < n; row++)
+        int q_start = qr->Qp[k];
+        int q_end = qr->Qp[k + 1];
+        for (int idx = q_start; idx < q_end; idx++)
         {
-            int q_start = qr->Qp[row];
-            int q_end = qr->Qp[row + 1];
-            for (int idx = q_start; idx < q_end; idx++)
-            {
-                int col = qr->Qi[idx];
-                double qval = qr->Qx[idx];
-                
-                /* Contribution to row 'row' from column 'col' */
-                double lb = qval * ((qval >= 0) ? x_lb[col] : x_ub[col]);
-                double ub = qval * ((qval >= 0) ? x_ub[col] : x_lb[col]);
-                
-                px_lb[row] += lb;
-                px_ub[row] += ub;
-                
-                /* Symmetric contribution if off-diagonal */
-                if (col != row && qr->Qp != NULL)
-                {
-                    /* Add to column's row as well (symmetric Q) */
-                    /* Actually Q is symmetric in QP, but stored in CSR format */
-                    /* This is tricky - we assume Q is diagonal for now */
-                }
-            }
+            int col = qr->Qi[idx];
+            double qval = qr->Qx[idx];
+            
+            double lb = bounds[col].lb;
+            double ub = bounds[col].ub;
+            
+            double contrib_lb = qval * ((qval >= 0) ? lb : ub);
+            double contrib_ub = qval * ((qval >= 0) ? ub : lb);
+            
+            *min_Px += contrib_lb;
+            *max_Px += contrib_ub;
         }
     }
     
-    /* Add R*R^T contribution */
+    /* Add R*R^T contribution for row k */
     if (qr->Rx != NULL && qr->Rp != NULL && qr->RTp != NULL)
     {
-        int k_dim = qr->k;
+        // int k_dim = (int)qr->k;
         
-        /* For each row i: (R*R^T)_{i,:} * x = sum_l R_{i,l} * (R^T * x)_l */
-        /* First compute R^T * x bounds for each column l of R (row l of R^T) */
-        double *rtx_lb = (double *)ps_malloc(k_dim, sizeof(double));
-        double *rtx_ub = (double *)ps_malloc(k_dim, sizeof(double));
+        /* For each non-zero R[k][l]: add R[k][l] * (R^T * x)_l */
+        int r_start = qr->Rp[k];
+        int r_end = qr->Rp[k + 1];
         
-        if (!rtx_lb || !rtx_ub)
+        for (int idx = r_start; idx < r_end; idx++)
         {
-            PS_FREE(x_lb);
-            PS_FREE(x_ub);
-            PS_FREE(rtx_lb);
-            PS_FREE(rtx_ub);
-            return false;
-        }
-        
-        /* Compute (R^T * x)_l bounds: sum_i R_{i,l} * x_i */
-        for (int l = 0; l < k_dim; l++)
-        {
-            rtx_lb[l] = 0.0;
-            rtx_ub[l] = 0.0;
+            int l = qr->Ri[idx];
+            double r_val = qr->Rx[idx];
+            
+            /* Compute bounds for (R^T * x)_l = sum_i R[i][l] * x_i */
+            double rtx_lb = 0.0;
+            double rtx_ub = 0.0;
             
             int rt_start = qr->RTp[l];
             int rt_end = qr->RTp[l + 1];
             
-            for (int idx = rt_start; idx < rt_end; idx++)
+            for (int rt_idx = rt_start; rt_idx < rt_end; rt_idx++)
             {
-                int i = qr->RTi[idx];
-                double r_val = qr->RTx[idx];
+                int i = qr->RTi[rt_idx];
+                double rt_val = qr->RTx[rt_idx];
                 
-                double lb = r_val * ((r_val >= 0) ? x_lb[i] : x_ub[i]);
-                double ub = r_val * ((r_val >= 0) ? x_ub[i] : x_lb[i]);
+                double lb = bounds[i].lb;
+                double ub = bounds[i].ub;
                 
-                rtx_lb[l] += lb;
-                rtx_ub[l] += ub;
+                rtx_lb += rt_val * ((rt_val >= 0) ? lb : ub);
+                rtx_ub += rt_val * ((rt_val >= 0) ? ub : lb);
             }
-        }
-        
-        /* Now compute R * (R^T * x) bounds */
-        for (int row = 0; row < n; row++)
-        {
-            int r_start = qr->Rp[row];
-            int r_end = qr->Rp[row + 1];
             
-            for (int idx = r_start; idx < r_end; idx++)
-            {
-                int l = qr->Ri[idx];
-                double r_val = qr->Rx[idx];
-                
-                double lb = r_val * ((r_val >= 0) ? rtx_lb[l] : rtx_ub[l]);
-                double ub = r_val * ((r_val >= 0) ? rtx_ub[l] : rtx_lb[l]);
-                
-                px_lb[row] += lb;
-                px_ub[row] += ub;
-            }
+            /* Add contribution from R[k][l] * (R^T * x)_l */
+            *min_Px += r_val * ((r_val >= 0) ? rtx_lb : rtx_ub);
+            *max_Px += r_val * ((r_val >= 0) ? rtx_ub : rtx_lb);
         }
-        
-        PS_FREE(rtx_lb);
-        PS_FREE(rtx_ub);
     }
     
-    PS_FREE(x_lb);
-    PS_FREE(x_ub);
     return true;
 }

@@ -65,9 +65,10 @@ static char *test_qp_simple_diagonal()
     stgs->parallel_cols = false;
     stgs->dton_eq = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -82,7 +83,7 @@ static char *test_qp_simple_diagonal()
      * - Problem dimensions may be reduced via other means
      */
     if (reduced->n > 0) {
-        mu_assert("should have quadratic term", reduced->has_quadratic);
+        mu_assert("should have quadratic term", reduced->Qnnz > 0 || reduced->Rnnz > 0 || reduced->k > 0);
     }
     /* If n==0, offset should capture the quadratic contribution */
     
@@ -133,9 +134,10 @@ static char *test_qp_with_offdiagonal()
     stgs->parallel_cols = false;
     stgs->dton_eq = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -145,7 +147,7 @@ static char *test_qp_with_offdiagonal()
     
     /* If not fully reduced, should preserve quadratic term */
     if (reduced->n > 0) {
-        mu_assert("should have quadratic term", reduced->has_quadratic);
+        mu_assert("should have quadratic term", reduced->Qnnz > 0 || reduced->Rnnz > 0 || reduced->k > 0);
     }
     
     PS_FREE(stgs);
@@ -191,9 +193,10 @@ static char *test_qp_larger()
     stgs->parallel_cols = false;
     stgs->dton_eq = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for larger QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -203,7 +206,7 @@ static char *test_qp_larger()
     
     /* Quadratic term should be preserved if any variables remain */
     if (reduced->n > 0) {
-        mu_assert("should have quadratic term", reduced->has_quadratic);
+        mu_assert("should have quadratic term", reduced->Qnnz > 0 || reduced->Rnnz > 0 || reduced->k > 0);
     }
     
     PS_FREE(stgs);
@@ -250,9 +253,10 @@ static char *test_qp_with_bounds()
     stgs->parallel_cols = false;
     stgs->dton_eq = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -267,8 +271,8 @@ static char *test_qp_with_bounds()
     /* After fixing x1, we should have 2 variables left with P = 2*I (2x2) */
     if (reduced->n > 0) {
         mu_assert("should have 2 variables", reduced->n == 2);
-        mu_assert("should have quadratic term", reduced->has_quadratic);
-        mu_assert("Pnnz should be 2", reduced->Pnnz == 2);
+        mu_assert("should have quadratic term", reduced->Qnnz > 0 || reduced->Rnnz > 0 || reduced->k > 0);
+        mu_assert("Qnnz should be 2", reduced->Qnnz == 2);
     }
     
     PS_FREE(stgs);
@@ -331,9 +335,10 @@ static char *test_qp_dense_matrix()
     stgs->parallel_cols = false;
     stgs->dton_eq = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for dense QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -347,7 +352,7 @@ static char *test_qp_dense_matrix()
     
     if (status == REDUCED || status == UNCHANGED) {
         if (reduced->n > 0) {
-            mu_assert("should have quadratic term", reduced->has_quadratic);
+            mu_assert("should have quadratic term", reduced->Qnnz > 0 || reduced->Rnnz > 0 || reduced->k > 0);
         }
     }
     
@@ -390,9 +395,10 @@ static char *test_qp_all_presolvers()
     stgs->verbose = false;
     /* Enable all presolvers */
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for all-presolvers QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -440,9 +446,10 @@ static char *test_qp_postsolve()
     stgs->ston_cols = false;
     stgs->parallel_cols = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for QP postsolve", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -539,9 +546,10 @@ static char *test_qp_large_scale()
     stgs->verbose = false;
     stgs->max_time = 10.0;  /* 10 second limit */
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for large QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -610,9 +618,10 @@ static char *test_qp_mixed_vars()
     stgs->parallel_cols = false;
     stgs->dton_eq = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for mixed QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -660,9 +669,10 @@ static char *test_qp_single_var()
     Settings *stgs = default_settings();
     stgs->verbose = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for single var QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -706,9 +716,10 @@ static char *test_qp_full_reduction()
     Settings *stgs = default_settings();
     stgs->verbose = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for full reduction QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -759,9 +770,10 @@ static char *test_qp_infeasible()
     Settings *stgs = default_settings();
     stgs->verbose = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for infeasible QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -802,9 +814,10 @@ static char *test_qp_near_zero_p()
     Settings *stgs = default_settings();
     stgs->verbose = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for near-zero P", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -846,9 +859,10 @@ static char *test_qp_large_p()
     Settings *stgs = default_settings();
     stgs->verbose = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for large P", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -890,9 +904,10 @@ static char *test_qp_negative_diagonal()
     Settings *stgs = default_settings();
     stgs->verbose = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for negative diagonal P", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -946,9 +961,10 @@ static char *test_qp_overdetermined()
     stgs->verbose = false;
     stgs->max_time = 5.0;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for overdetermined QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -1023,9 +1039,10 @@ static char *test_qp_underdetermined()
     stgs->verbose = false;
     stgs->max_time = 5.0;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for underdetermined QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -1071,9 +1088,10 @@ static char *test_qp_tight_bounds()
     Settings *stgs = default_settings();
     stgs->verbose = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for tight bounds QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -1118,9 +1136,10 @@ static char *test_qp_unconstrained()
     Settings *stgs = default_settings();
     stgs->verbose = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for unconstrained QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -1172,9 +1191,10 @@ static char *test_qp_fully_dense()
     stgs->ston_cols = false;
     stgs->parallel_cols = false;
     
-    Presolver *presolver = new_qp_presolver(Ax, Ai, Ap, m, n, nnz,
-                                            lhs, rhs, lbs, ubs, c,
-                                            Px, Pi, Pp, Pnnz, stgs);
+    Presolver *presolver = new_qp_presolver_qr(Ax, Ai, Ap, m, n, nnz,
+                                               lhs, rhs, lbs, ubs, c,
+                                               Px, Pi, Pp, Pnnz,
+                                               NULL, NULL, NULL, 0, 0, stgs);
     mu_assert("presolver creation failed for dense QP", presolver != NULL);
     
     PresolveStatus status = run_presolver(presolver);
@@ -1184,7 +1204,7 @@ static char *test_qp_fully_dense()
               status == REDUCED || status == UNCHANGED || status == INFEASIBLE);
     
     if ((status == REDUCED || status == UNCHANGED) && reduced->n > 0) {
-        mu_assert("should have quadratic term", reduced->has_quadratic);
+        mu_assert("should have quadratic term", reduced->Qnnz > 0 || reduced->Rnnz > 0 || reduced->k > 0);
     }
     
     PS_FREE(stgs);

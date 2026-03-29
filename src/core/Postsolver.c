@@ -137,6 +137,7 @@ static void retrieve_fix_col_qp_qr(Solution *sol, int col, double val, double ck
                                    const double *q_vals, const int *q_cols, int len_Q,
                                    const double *rt_vals, const int *rt_cols, int len_RT)
 {
+    (void)rt_cols;  /* Unused parameter - kept for API consistency */
     assert(sol->x[col] == COL_NOT_RETRIEVED);
     assert(sol->z[col] == COL_NOT_RETRIEVED);
 

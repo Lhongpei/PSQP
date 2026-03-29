@@ -124,11 +124,14 @@ Matrix *matrix_new_no_extra_space(const double *Ax, const int *Ai, const int *Ap
     }
     else if (Ap != NULL)
     {
-        for (int i = 0; i <= n_rows; ++i)
+        for (int i = 0; i < n_rows; ++i)
         {
             A->p[i].start = Ap[i];
             A->p[i].end = Ap[i + 1];
         }
+        /* Set the sentinel entry */
+        A->p[n_rows].start = Ap[n_rows];
+        A->p[n_rows].end = Ap[n_rows];
     }
     else
     {
@@ -535,20 +538,29 @@ double insert_or_update_coeff(Matrix *A, int row, int col, double val, int *row_
 
 void remove_coeff(RowView *row, int col)
 {
-    int shift = 0;
     int len = *row->len;
+    int found_idx = -1;
+    
+    /* Find the column to remove */
     for (int i = 0; i < len; ++i)
     {
         if (row->cols[i] == col)
         {
-            shift = 1;
+            found_idx = i;
+            break;
         }
-
-        row->vals[i] = row->vals[i + shift];
-        row->cols[i] = row->cols[i + shift];
+    }
+    
+    assert(found_idx != -1);
+    if (found_idx == -1) return;
+    
+    /* Shift elements to fill the gap */
+    for (int i = found_idx; i < len - 1; ++i)
+    {
+        row->vals[i] = row->vals[i + 1];
+        row->cols[i] = row->cols[i + 1];
     }
 
-    assert(shift != 0);
     (*row->range).end -= 1;
     *row->len -= 1;
 }

@@ -75,3 +75,4 @@ out/
 .DS_Store
 
 doc/
+build_asan/

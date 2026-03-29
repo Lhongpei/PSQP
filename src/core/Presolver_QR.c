@@ -175,6 +175,17 @@ Presolver *new_qp_presolver_qr(const double *Ax, const int *Ai, const int *Ap,
     //  ---------------------------------------------------------------------------
     size_t n_rows = m;
     size_t n_cols = n;
+    
+    /* Validate array inputs based on dimensions */
+    if (n_rows > 0 && (lhs == NULL || rhs == NULL))
+    {
+        return NULL;
+    }
+    if (n_cols > 0 && (c == NULL || lbs == NULL || ubs == NULL))
+    {
+        return NULL;
+    }
+    
     lhs_copy = (double *) ps_malloc(n_rows, sizeof(double));
     rhs_copy = (double *) ps_malloc(n_rows, sizeof(double));
     c_copy = (double *) ps_malloc(n_cols, sizeof(double));
@@ -190,9 +201,15 @@ Presolver *new_qp_presolver_qr(const double *Ax, const int *Ai, const int *Ap,
         goto cleanup;
     }
 
-    memcpy(lhs_copy, lhs, n_rows * sizeof(double));
-    memcpy(rhs_copy, rhs, n_rows * sizeof(double));
-    memcpy(c_copy, c, n_cols * sizeof(double));
+    if (n_rows > 0)
+    {
+        memcpy(lhs_copy, lhs, n_rows * sizeof(double));
+        memcpy(rhs_copy, rhs, n_rows * sizeof(double));
+    }
+    if (n_cols > 0)
+    {
+        memcpy(c_copy, c, n_cols * sizeof(double));
+    }
 
     // ---------------------------------------------------------------------------
     //  Create quadratic term QR if provided

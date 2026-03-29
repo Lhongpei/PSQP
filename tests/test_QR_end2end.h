@@ -285,7 +285,7 @@ static char *test_qr_output_validity()
     run_presolver(presolver);
     PresolvedProblem *reduced = presolver->reduced_prob;
     
-    if (reduced->has_quad_qr && reduced->n > 0) {
+    if (reduced->Qnnz > 0 || reduced->Rnnz > 0 || reduced->k > 0 && reduced->n > 0) {
         mu_assert("Qp[0] should be 0", reduced->Qp[0] == 0);
         mu_assert("Qp[n] should equal Qnnz", reduced->Qp[reduced->n] == (int)reduced->Qnnz);
         mu_assert("Rp[0] should be 0", reduced->Rp[0] == 0);

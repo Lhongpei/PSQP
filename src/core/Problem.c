@@ -56,41 +56,6 @@ void free_problem(Problem *problem)
     PS_FREE(problem);
 }
 
-/* Helper function to transpose a matrix in CSR format */
-static void transpose_matrix(const double *Ax, const int *Ai, const int *Ap,
-                             double **ATx, int **ATi, int **ATp,
-                             size_t n_rows, size_t n_cols, size_t nnz)
-{
-    *ATx = (double *) ps_malloc(nnz, sizeof(double));
-    *ATi = (int *) ps_malloc(nnz, sizeof(int));
-    *ATp = (int *) ps_malloc(n_cols + 1, sizeof(int));
-    
-    if (!*ATx || !*ATi || !*ATp) return;
-    
-    /* Count elements per column */
-    for (size_t i = 0; i <= n_cols; i++) (*ATp)[i] = 0;
-    for (size_t i = 0; i < nnz; i++) (*ATp)[Ai[i] + 1]++;
-    
-    /* Cumulative sum */
-    for (size_t i = 0; i < n_cols; i++) (*ATp)[i + 1] += (*ATp)[i];
-    
-    /* Fill values */
-    int *col_counts = (int *) ps_malloc(n_cols, sizeof(int));
-    for (size_t i = 0; i < n_cols; i++) col_counts[i] = 0;
-    
-    for (size_t i = 0; i < n_rows; i++) {
-        for (int j = Ap[i]; j < Ap[i + 1]; j++) {
-            int col = Ai[j];
-            int idx = (*ATp)[col] + col_counts[col];
-            (*ATi)[idx] = (int) i;
-            (*ATx)[idx] = Ax[j];
-            col_counts[col]++;
-        }
-    }
-    PS_FREE(col_counts);
-}
-
-
 Objective *objective_new_qr(double *c, QuadTermQR *quad_qr)
 {
     Objective *obj = (Objective *) ps_malloc(1, sizeof(Objective));
