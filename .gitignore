@@ -76,3 +76,4 @@ out/
 
 doc/
 build_asan/
+build_ninja/

@@ -185,63 +185,69 @@ target_include_directories(qr_example PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
 )
 
-# Test for advanced QR optimizations
-add_executable(test_qr_advanced tests/test_qr_advanced.c)
-target_link_libraries(test_qr_advanced PRIVATE PSQP)
-target_include_directories(test_qr_advanced PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
-)
+if(PSQP_BUILD_TESTING)
+  # Test for advanced QR optimizations
+  add_executable(test_qr_advanced tests/test_qr_advanced.c)
+  target_link_libraries(test_qr_advanced PRIVATE PSQP)
+  target_compile_definitions(test_qr_advanced PRIVATE TESTING)
+  target_include_directories(test_qr_advanced PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/core
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
+  )
 
-# Test for DtonsEq with pure Q diagonal
-add_executable(test_qr_dton tests/test_qr_dton.c)
-target_link_libraries(test_qr_dton PRIVATE PSQP)
-target_include_directories(test_qr_dton PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
-)
+  # Test for DtonsEq with pure Q diagonal
+  add_executable(test_qr_dton tests/test_qr_dton.c)
+  target_link_libraries(test_qr_dton PRIVATE PSQP)
+  target_compile_definitions(test_qr_dton PRIVATE TESTING)
+  target_include_directories(test_qr_dton PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/core
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
+  )
 
-# QP Debug Test
-add_executable(test_qp_debug tests/test_psqp_all/test_qp_debug.c)
-target_link_libraries(test_qp_debug PRIVATE PSQP)
-target_include_directories(test_qp_debug PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
-)
+  # QP Debug Test
+  add_executable(test_qp_debug tests/test_psqp_all/test_qp_debug.c)
+  target_link_libraries(test_qp_debug PRIVATE PSQP)
+  target_compile_definitions(test_qp_debug PRIVATE TESTING)
+  target_include_directories(test_qp_debug PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/core
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
+  )
 
-# Comprehensive PSQP Test Suite
-add_executable(test_psqp_all
-    tests/test_psqp_all/test_main.c
-    tests/test_psqp_all/test_qr_core.c
-    tests/test_psqp_all/test_problem.c
-    tests/test_psqp_all/test_presolve.c
-    tests/test_psqp_all/test_qp_specific.c
-    tests/test_psqp_all/test_qp_step4.c
-    tests/test_psqp_all/test_qp_step5.c
-    tests/test_psqp_all/test_qp_step6.c
-    tests/test_psqp_all/test_qp_step7.c
-    tests/test_psqp_all/test_qp_step8.c
-    tests/test_psqp_all/test_qp_full.c
-    tests/test_psqp_all/test_edge_cases.c
-    tests/test_psqp_all/test_edge_full.c
-    tests/test_psqp_all/test_qp_postsolve.c
-    tests/test_psqp_all/test_qp_kkt.c
-    tests/test_psqp_all/test_qp_partial.c
-)
-target_link_libraries(test_psqp_all PRIVATE PSQP m)
-target_include_directories(test_psqp_all PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/core
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
-    ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_psqp_all
-)
+  # Comprehensive PSQP Test Suite
+  add_executable(test_psqp_all
+      tests/test_psqp_all/test_main.c
+      tests/test_psqp_all/test_qr_core.c
+      tests/test_psqp_all/test_problem.c
+      tests/test_psqp_all/test_presolve.c
+      tests/test_psqp_all/test_qp_specific.c
+      tests/test_psqp_all/test_qp_step4.c
+      tests/test_psqp_all/test_qp_step5.c
+      tests/test_psqp_all/test_qp_step6.c
+      tests/test_psqp_all/test_qp_step7.c
+      tests/test_psqp_all/test_qp_step8.c
+      tests/test_psqp_all/test_qp_full.c
+      tests/test_psqp_all/test_edge_cases.c
+      tests/test_psqp_all/test_edge_full.c
+      tests/test_psqp_all/test_qp_postsolve.c
+      tests/test_psqp_all/test_qp_kkt.c
+      tests/test_psqp_all/test_qp_partial.c
+  )
+  target_link_libraries(test_psqp_all PRIVATE PSQP m)
+  target_compile_definitions(test_psqp_all PRIVATE TESTING)
+  target_include_directories(test_psqp_all PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/core
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/data_structures
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/explorers
+      ${CMAKE_CURRENT_SOURCE_DIR}/include/PSLP
+      ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_psqp_all
+  )
+endif()
 
 # Installation and export
 install(TARGETS PSQP
