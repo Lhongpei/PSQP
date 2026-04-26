@@ -9,6 +9,8 @@
 #include "test_QR_comprehensive.h"
 #include "test_QR_objective.h"
 #include "test_QR_end2end.h"
+#include "test_QR_nkfix.h"
+#include "test_QR_kkt.h"
 #include "test_SimpleReductions.h"
 #include "test_domain_propagation.h"
 #include "test_dton.h"
@@ -26,6 +28,8 @@ const char *run_all_tests()
     mu_assert("qr_comprehensive error", test_qr_comprehensive());
     mu_assert("qr_objective error", test_qr_objective());
     mu_assert("qr_end2end error", test_qr_end2end());
+    mu_assert("qr_nkfix error", test_qr_nkfix());
+    mu_assert("qr_kkt error", test_qr_kkt());
     
     mu_assert("matrix error", test_matrix());
     mu_assert("constraints error", test_constraints());

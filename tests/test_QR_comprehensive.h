@@ -361,10 +361,10 @@ static char *test_qr_empty_q_postsolve()
     double c[] = {0.0, 0.0};
     
     /* Q is empty (NULL) */
-    /* R = [1; 1], so P = [1, 1; 1, 1] */
+    /* R = [1; 1] (2x1), so P = R R^T = [[1, 1], [1, 1]] */
     double Rx[] = {1.0, 1.0};
     int Ri[] = {0, 0};
-    int Rp[] = {0, 1, 1};
+    int Rp[] = {0, 1, 2};
     size_t Rnnz = 2;
     size_t k = 1;
     
@@ -578,9 +578,8 @@ static int counter_qr_comp = 0;
 
 static const char *all_tests_qr_comprehensive()
 {
-    /* NOTE: First two tests have data issues causing presolve to fail */
-    /* mu_run_test(test_qr_postsolve_simple, counter_qr_comp); */
-    /* mu_run_test(test_qr_postsolve_fixed_vars, counter_qr_comp); */
+    mu_run_test(test_qr_postsolve_simple, counter_qr_comp);
+    mu_run_test(test_qr_postsolve_fixed_vars, counter_qr_comp);
     mu_run_test(test_qr_shrink_verification, counter_qr_comp);
     mu_run_test(test_qr_empty_q_postsolve, counter_qr_comp);
     mu_run_test(test_qr_empty_r_postsolve, counter_qr_comp);

@@ -386,8 +386,7 @@ static int counter_qr_obj = 0;
 static const char *all_tests_qr_objective()
 {
     mu_run_test(test_qr_offset_fixed_var, counter_qr_obj);
-    /* NOTE: This test has data issues causing presolve to fail */
-    /* mu_run_test(test_qr_offset_multiple_fixed, counter_qr_obj); */
+    mu_run_test(test_qr_offset_multiple_fixed, counter_qr_obj);
     mu_run_test(test_qr_linear_term_update, counter_qr_obj);
     mu_run_test(test_qr_reduced_structure, counter_qr_obj);
     return 0;

@@ -129,54 +129,76 @@ static void retrieve_fix_col(Solution *sol, int col, double val, double ck,
     }
 }
 
-// QP version for QR format: recovers zk = ck + (P*x)_k - ak^T y
-// where P = Q + R*R^T
-// (P*x)_k is computed from Q row k and R^T row k
+// QP version for QR format: recovers z[col] for a fixed variable.
+//
+// The convention used here is:
+//   z[col] = c_orig[col] + (P · x)[col] - (A^T y)[col]
+//
+// At fix time we saved `ck = c[col]` AT THAT MOMENT, which already includes
+// the contributions P[col,j]·x[j] for every variable j that PSQP had already
+// fixed before `col`. In postsolve's reverse order, those variables have
+// their x[] still equal to COL_NOT_RETRIEVED when we process `col`, so we
+// simply skip them when reconstructing (P · x)[col]; their contribution is
+// already baked into ck. Variables that are retrieved (either from the
+// reduced solution or from a later-in-presolve-but-earlier-in-postsolve fix)
+// contribute the usual P[col,j]·x[j] term.
 static void retrieve_fix_col_qp_qr(Solution *sol, int col, double val, double ck,
                                    const double *ak_vals, const int *ak_rows, int len_A,
                                    const double *q_vals, const int *q_cols, int len_Q,
-                                   const double *rt_vals, const int *rt_cols, int len_RT)
+                                   const double *rt_vals, const int *rt_cols, int len_RT,
+                                   const int *cross_block, int cross_total,
+                                   const double *cross_vals)
 {
-    (void)rt_cols;  /* Unused parameter - kept for API consistency */
+    (void)cross_total;
+    (void)rt_cols;
     assert(sol->x[col] == COL_NOT_RETRIEVED);
     assert(sol->z[col] == COL_NOT_RETRIEVED);
 
     sol->x[col] = val;
     sol->z[col] = ck;
-    
-    /* Add Q contribution: sum_j Q[k][j] * x_j
-     * Q is stored upper triangular, so Q[k][j] exists for j >= k */
+
+    /* (Q · x)[col] part — Q upper-triangular, q_cols gives j >= col.
+     * Skip j whose x isn't yet retrieved (contribution already in ck). */
     for (int i = 0; i < len_Q; ++i)
     {
         int j = q_cols[i];
-        assert(sol->x[j] != COL_NOT_RETRIEVED);
+        if (sol->x[j] == COL_NOT_RETRIEVED) continue;
         sol->z[col] += q_vals[i] * sol->x[j];
     }
-    
-    /* Add R*R^T contribution: (R*R^T)[k][j] = sum_l R[l][k] * R[l][j]
-     * We have R^T row k = column k of R: rt_vals[i] = R[rt_cols[i]][k]
-     * For each j, we need to compute sum over l of R[l][k] * R[l][j]
-     * 
-     * Simplified: we store R^T row k, and at retrieval we compute
-     * contribution as: sum_i rt_vals[i] * (R row rt_cols[i] dot x)
-     * 
-     * However, we don't have full R matrix at retrieval. Instead,
-     * we compute (R*R^T * x)_k = sum_i rt_vals[i] * (R^T x)_{rt_cols[i]}
-     * where (R^T x)_l = sum_j R[l][j] * x_j
-     * 
-     * For simplicity and correctness, we require that all variables
-     * appearing in R rows with non-zero in column k have been retrieved.
-     * We approximate by using only the diagonal contribution from R*R^T:
-     * (R*R^T)[k][k] = sum_l R[l][k]^2 = sum_i rt_vals[i]^2
-     */
-    double r_diag = 0.0;
-    for (int i = 0; i < len_RT; ++i)
+
+    /* (R R^T · x)[col] = sum_l R[col,l] · (R^T x)[l] where the cross block
+     * stores, for each factor l listed in rt_cols, the full column of R
+     * as (var_index, R[var_index, l]) pairs. */
+    if (len_RT > 0 && cross_block != NULL && cross_vals != NULL)
     {
-        r_diag += rt_vals[i] * rt_vals[i];
+        int idx_block = 0;
+        int idx_vals  = 0;
+        for (int i = 0; i < len_RT; ++i)
+        {
+            int nnz_l = cross_block[idx_block++];
+            double rtx_l = 0.0;
+            for (int q = 0; q < nnz_l; q++)
+            {
+                int var = cross_block[idx_block + q];
+                double r_il = cross_vals[idx_vals + q];
+                if (sol->x[var] == COL_NOT_RETRIEVED) continue;
+                rtx_l += r_il * sol->x[var];
+            }
+            idx_block += nnz_l;
+            idx_vals  += nnz_l;
+            sol->z[col] += rt_vals[i] * rtx_l;
+        }
     }
-    sol->z[col] += r_diag * val;  /* Contribution from R*R^T diagonal */
-    
-    /* Subtract linear constraint contribution: ak^T y */
+    else
+    {
+        /* Legacy fallback (no cross data saved): diagonal-only approximation.
+         * Only exact when col is the sole loader on each of its factors. */
+        double r_diag = 0.0;
+        for (int i = 0; i < len_RT; ++i) r_diag += rt_vals[i] * rt_vals[i];
+        sol->z[col] += r_diag * val;
+    }
+
+    /* -(A^T y)[col] */
     for (int i = 0; i < len_A; ++i)
     {
         assert(sol->y[ak_rows[i]] != ROW_NOT_RETRIEVED);
@@ -625,24 +647,37 @@ void postsolver_run(const PostsolveInfo *info, Solution *sol, const double *x,
         }
         else if (type == FIXED_COL_QP)
         {
-            /* QR format: indices = [col, len_A, rows..., len_Q, Q_cols..., len_RT, RT_cols...]
-             *            vals = [val, ck, vals..., Q_vals..., RT_vals...] */
-            int col = indices[start];
+            /* Extended QR format — see save_retrieval_fixed_col_qp_qr. */
+            int col   = indices[start];
             int len_A = indices[start + 1];
             const int *rows = indices + start + 2;
-            int len_Q = indices[start + 2 + len_A];
-            const int *q_cols = (len_Q > 0) ? indices + start + 3 + len_A : NULL;
-            int len_RT = indices[start + 3 + len_A + len_Q];
-            const int *rt_cols = (len_RT > 0) ? indices + start + 4 + len_A + len_Q : NULL;
-            
+            int off = 2 + len_A;
+
+            int len_Q = indices[start + off];
+            const int *q_cols = (len_Q > 0) ? indices + start + off + 1 : NULL;
+            off += 1 + len_Q;
+
+            int len_RT = indices[start + off];
+            const int *rt_cols = (len_RT > 0) ? indices + start + off + 1 : NULL;
+            off += 1 + len_RT;
+
+            int cross_total = indices[start + off];
+            const int *cross_block = (cross_total > 0) ? indices + start + off + 1 : NULL;
+
             double val = vals[start];
-            double ck = vals[start + 1];
+            double ck  = vals[start + 1];
             const double *a_vals = vals + start + 2;
-            const double *q_vals = (len_Q > 0) ? vals + start + 2 + len_A : NULL;
-            const double *rt_vals = (len_RT > 0) ? vals + start + 2 + len_A + len_Q : NULL;
-            
+            int voff = 2 + len_A;
+            const double *q_vals = (len_Q > 0) ? vals + start + voff : NULL;
+            voff += len_Q;
+            const double *rt_vals = (len_RT > 0) ? vals + start + voff : NULL;
+            voff += len_RT;
+            const double *cross_vals = vals + start + voff;
+
             retrieve_fix_col_qp_qr(sol, col, val, ck, a_vals, rows, len_A,
-                                   q_vals, q_cols, len_Q, rt_vals, rt_cols, len_RT);
+                                   q_vals, q_cols, len_Q,
+                                   rt_vals, rt_cols, len_RT,
+                                   cross_block, cross_total, cross_vals);
         }
         else if (type == SUB_COL)
         {
@@ -855,55 +890,87 @@ void save_retrieval_fixed_col_qp(PostsolveInfo *info, int col, double val, doubl
 void save_retrieval_fixed_col_qp_qr(PostsolveInfo *info, int col, double val, double ck,
                                     const double *vals, const int *rows, size_t len,
                                     const double *q_vals, const int *q_cols, size_t q_len,
-                                    const double *rt_vals, const int *rt_cols, size_t rt_len)
+                                    const double *rt_vals, const int *rt_cols, size_t rt_len,
+                                    const int *RTp, const int *RTi, const double *RTx)
 {
-    /* Format: indices = [col, len_A, rows..., len_Q, Q_cols..., len_RT, RT_cols...]
-     *         vals = [val, ck, vals..., Q_vals..., RT_vals..., DUMMY_PADDING...]
-     * 
-     * IMPORTANT: We must maintain vals->len == indices->len for compatibility
-     * with other reductions. The padding ensures this invariant holds.
+    /* Extended format (vs. the original diagonal-only version):
+     *
+     *   indices = [col, len_A, rows_A...,
+     *              len_Q, Q_cols...,
+     *              len_RT, RT_cols...,
+     *              cross_total, {len_l, RT_row_l_var_indices...} per l in RT_cols]
+     *   vals    = [val, ck, a_vals...,
+     *              Q_vals...,
+     *              RT_vals...,
+     *              {RT_row_l_values...} per l,
+     *              padding]
+     *
+     * where cross_total = sum over l in RT_cols of (1 + nnz(RT row l)).
+     * The cross block lets postsolve reconstruct (R R^T · x)_col completely
+     * (not just the diagonal) at dual recovery time. Padding is appended to
+     * `vals` to maintain vals->len == indices->len for the shared storage.
      */
-    
-    /* Calculate total indices length first */
-    size_t indices_len = 1 + 1 + len + 1 + q_len + 1 + rt_len;  /* col, len_A, rows, len_Q, Q_cols, len_RT, RT_cols */
-    size_t vals_len = 2 + len + q_len + rt_len;  /* val, ck, vals, Q_vals, RT_vals */
-    size_t padding_needed = indices_len - vals_len;  /* Should be 2 (for len_Q and len_RT positions) */
-    
+
+    size_t cross_total_idx = 0;  /* # of additional int slots beyond the count itself */
+    size_t cross_total_val = 0;  /* # of additional double slots */
+    if (rt_len > 0 && RTp != NULL && RTi != NULL && RTx != NULL && rt_cols != NULL)
+    {
+        for (size_t i = 0; i < rt_len; i++)
+        {
+            int l = rt_cols[i];
+            size_t nnz_l = (size_t)(RTp[l + 1] - RTp[l]);
+            cross_total_idx += 1 + nnz_l;   /* len_l + var indices */
+            cross_total_val += nnz_l;        /* values */
+        }
+    }
+
+    size_t indices_len = 1 + 1 + len + 1 + q_len + 1 + rt_len + 1 + cross_total_idx;
+    size_t vals_len   = 2 + len + q_len + rt_len + cross_total_val;
+    size_t padding_needed = indices_len - vals_len;
+
     u16Vec_append(info->type, FIXED_COL_QP);
     iVec_append(info->indices, col);
     iVec_append(info->indices, (int) len);  /* len_A */
     iVec_append_array(info->indices, rows, len);
-    iVec_append(info->indices, (int) q_len);  /* len_Q */
-    if (q_len > 0 && q_cols != NULL)
+    iVec_append(info->indices, (int) q_len);
+    if (q_len > 0 && q_cols != NULL) iVec_append_array(info->indices, q_cols, q_len);
+    iVec_append(info->indices, (int) rt_len);
+    if (rt_len > 0 && rt_cols != NULL) iVec_append_array(info->indices, rt_cols, rt_len);
+    iVec_append(info->indices, (int) cross_total_idx);
+    if (cross_total_idx > 0)
     {
-        iVec_append_array(info->indices, q_cols, q_len);
+        for (size_t i = 0; i < rt_len; i++)
+        {
+            int l = rt_cols[i];
+            int rt_start = RTp[l];
+            int rt_end = RTp[l + 1];
+            int nnz_l = rt_end - rt_start;
+            iVec_append(info->indices, nnz_l);
+            if (nnz_l > 0) iVec_append_array(info->indices, RTi + rt_start, (size_t)nnz_l);
+        }
     }
-    iVec_append(info->indices, (int) rt_len);  /* len_RT */
-    if (rt_len > 0 && rt_cols != NULL)
-    {
-        iVec_append_array(info->indices, rt_cols, rt_len);
-    }
-    
+
     dVec_append(info->vals, val);
     dVec_append(info->vals, ck);
     dVec_append_array(info->vals, vals, len);
-    if (q_len > 0 && q_vals != NULL)
+    if (q_len > 0 && q_vals != NULL) dVec_append_array(info->vals, q_vals, q_len);
+    if (rt_len > 0 && rt_vals != NULL) dVec_append_array(info->vals, rt_vals, rt_len);
+    if (cross_total_val > 0)
     {
-        dVec_append_array(info->vals, q_vals, q_len);
+        for (size_t i = 0; i < rt_len; i++)
+        {
+            int l = rt_cols[i];
+            int rt_start = RTp[l];
+            int rt_end = RTp[l + 1];
+            int nnz_l = rt_end - rt_start;
+            if (nnz_l > 0) dVec_append_array(info->vals, RTx + rt_start, (size_t)nnz_l);
+        }
     }
-    if (rt_len > 0 && rt_vals != NULL)
-    {
-        dVec_append_array(info->vals, rt_vals, rt_len);
-    }
-    /* Add padding to maintain vals->len == indices->len */
-    for (size_t i = 0; i < padding_needed; i++)
-    {
-        dVec_append(info->vals, DUMMY_VALUE);
-    }
-    
+    for (size_t i = 0; i < padding_needed; i++) dVec_append(info->vals, DUMMY_VALUE);
+
     iVec_append(info->starts, (int) info->indices->len);
     assert(info->starts->len == info->type->len + 1);
-    assert(info->vals->len == info->indices->len);  /* Maintain invariant */
+    assert(info->vals->len == info->indices->len);
 }
 
 void save_retrieval_fixed_col_inf(PostsolveInfo *info, int col, int pos_inf,

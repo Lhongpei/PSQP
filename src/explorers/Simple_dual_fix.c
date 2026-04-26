@@ -189,9 +189,9 @@ PresolveStatus simple_dual_fix(Problem *prob)
         /* For QP: compute effective coefficient including quadratic term contributions */
         bool can_fix_to_lb, can_fix_to_ub;
         double effective_c = get_effective_coeff_for_dual_fix(
-            prob->obj->quad_qr, (int) k, c[k], bounds, n_cols, 
+            prob->obj->quad_qr, (int) k, c[k], bounds, n_cols,
             &can_fix_to_lb, &can_fix_to_ub);
-        
+
         /* If we cannot determine bounds (NaN), skip this variable */
         if (isnan(effective_c))
         {

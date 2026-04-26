@@ -134,7 +134,7 @@ static char *test_qr_r_only()
      */
     double Rx[] = {1.0, 1.0};
     int Ri[] = {0, 0};
-    int Rp[] = {0, 1, 1};
+    int Rp[] = {0, 1, 2};
     size_t Rnnz = 2;
     size_t k = 1;
     

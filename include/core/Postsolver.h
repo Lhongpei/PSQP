@@ -104,13 +104,18 @@ void save_retrieval_fixed_col_qp(PostsolveInfo *info, int col, double val, doubl
                                  const double *vals, const int *rows, size_t len,
                                  const double *p_vals, const int *p_cols, size_t p_len);
 
-/* QP version for QR format (P = Q + R*R^T): saves A matrix row and QR info
- * q_vals, q_cols, q_len: Q matrix row k (upper triangular, includes diagonal)
- * rt_vals, rt_cols, rt_len: R^T row k (column k of R) for R*R^T contribution */
+/* QP version for QR format (P = Q + R*R^T): saves A matrix row and QR info.
+ *   q_vals, q_cols, q_len  — row `col` of Q (upper triangular).
+ *   rt_vals, rt_cols, rt_len — row `col` of R (i.e. the factor loadings of
+ *     the fixed variable, NOT a row of R^T despite the historical name).
+ *   RTp, RTi, RTx — row pointers / indices / values of the k×n R transpose,
+ *     used to snapshot the full column of R for each factor in rt_cols. If
+ *     rt_len == 0 or these are NULL, no cross-term data is saved. */
 void save_retrieval_fixed_col_qp_qr(PostsolveInfo *info, int col, double val, double ck,
                                     const double *vals, const int *rows, size_t len,
                                     const double *q_vals, const int *q_cols, size_t q_len,
-                                    const double *rt_vals, const int *rt_cols, size_t rt_len);
+                                    const double *rt_vals, const int *rt_cols, size_t rt_len,
+                                    const int *RTp, const int *RTi, const double *RTx);
 
 /* Saves the information required to retrieve variable xk that was fixed
    to either +INF or -INF.

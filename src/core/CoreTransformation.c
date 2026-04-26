@@ -77,25 +77,32 @@ PresolveStatus fix_col(struct Constraints *constraints, int col, double val, dou
             }
         }
         
+        /* Save row `col` of R so postsolve knows R[col, l] for every
+         * factor l that `col` loads on. */
         const double *rt_vals = NULL;
         const int *rt_cols = NULL;
         size_t rt_len = 0;
-        if (qr->RTx != NULL && qr->RTp != NULL)
+        if (qr->Rx != NULL && qr->Rp != NULL)
         {
-            int rt_start = qr->RTp[col];
-            int rt_end = qr->RTp[col + 1];
-            rt_len = (size_t)(rt_end - rt_start);
+            int r_start = qr->Rp[col];
+            int r_end = qr->Rp[col + 1];
+            rt_len = (size_t)(r_end - r_start);
             if (rt_len > 0)
             {
-                rt_vals = qr->RTx + rt_start;
-                rt_cols = qr->RTi + rt_start;
+                rt_vals = qr->Rx + r_start;
+                rt_cols = qr->Ri + r_start;
             }
         }
-        
-        save_retrieval_fixed_col_qp_qr(data->postsolve_info, col, val, ck, 
-                                       vals, rows, (size_t) len,
-                                       q_vals, q_cols, q_len,
-                                       rt_vals, rt_cols, rt_len);
+
+        /* For correct dual recovery we also need, for each factor l above,
+         * the full column l of R (row l of RT). Pass RT so Postsolver can
+         * slice the relevant rows by factor index. */
+        save_retrieval_fixed_col_qp_qr(
+            data->postsolve_info, col, val, ck,
+            vals, rows, (size_t) len,
+            q_vals, q_cols, q_len,
+            rt_vals, rt_cols, rt_len,
+            qr->RTp, qr->RTi, qr->RTx);
     }
     else
     {

@@ -38,9 +38,11 @@ static char *test_qr_portfolio_optimization()
     int Dp[] = {0, 1, 2, 3, 4, 5};
     size_t Dnnz = 5;
     
-    double Fx[] = {0.3, 0.4, 0.2, 0.5, 0.35, 0.1, -0.1, 0.2, 0.0, 0.15};
-    int Fi[] = {0, 0, 0, 0, 0, 1, 1, 1, 1, 1};
-    int Fp[] = {0, 5, 10};
+    /* F is n×k = 5×2 CSR (each row = asset's loadings on both factors).
+     * Row i: [factor0 loading, factor1 loading] */
+    double Fx[] = {0.3, 0.1, 0.4, -0.1, 0.2, 0.2, 0.5, 0.0, 0.35, 0.15};
+    int Fi[] = {0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
+    int Fp[] = {0, 2, 4, 6, 8, 10};
     size_t Fnnz = 10;
     size_t k = 2;
     

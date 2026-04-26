@@ -87,6 +87,18 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
             // change this
             if (IS_EQUAL_FEAS_TOL(ck * aj_vals[0], cj * ak0))
             {
+                /* For QR decomposition: skip if either variable has quadratic
+                 * terms. Substituting column k into column j assumes the two
+                 * variables appear only linearly in the objective; if either
+                 * has Q or R entries, merging their bounds would silently
+                 * pollute the QP data without a corresponding quadratic
+                 * substitution. Skip the whole merge in that case. */
+                if (has_quadratic_terms_qr(prob->obj->quad_qr, k) ||
+                    has_quadratic_terms_qr(prob->obj->quad_qr, j))
+                {
+                    continue;
+                }
+
                 // mark that we must recount n_infs for rows in which column j
                 // appears in
                 recount_ninfs = true;
@@ -153,15 +165,6 @@ static inline PresolveStatus process_single_bin(const Problem *prob, const int *
                                !IS_ABS_INF(bounds[k].lb));
                         bounds[j].ub += bounds[k].lb * ratio;
                     }
-                }
-
-                /* For QR decomposition: skip if the variable to be eliminated (k)
-                 * has quadratic terms (non-zero column in Q or R matrix).
-                 * Linear variables can still be safely eliminated.
-                 */
-                if (has_quadratic_terms_qr(prob->obj->quad_qr, k))
-                {
-                    continue;
                 }
 
                 // ---------------------------------------------------------------------
